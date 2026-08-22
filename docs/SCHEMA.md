@@ -75,6 +75,11 @@ Rules:
   without a seeded value), `"n/a"` (upstream returned nothing).
 - `update_available` is `isNewer(latest, current)` — floating sentinels (`latest`, `stable`,
   `floating`, `n/a`, `unknown`, `""`) never count as newer.
+- **Comparison considers the leading numeric release only** (after stripping `^v`/`^curl-` and
+  converting `_` to `.`). Prerelease and build suffixes are invisible by design:
+  `v2.41.1-sunbeam.12` vs `v2.41.1-sunbeam.13` compares equal, and `1.0.0-rc1` compares equal to
+  `1.0.0`. Suffixes aren't reliably orderable across ecosystems, so they are deliberately out of
+  scope for drift detection.
 - `generated_at` is UTC, formatted `%Y-%m-%d %H:%M:%S UTC`.
 
 ## Postgres tables (`db/migrations/001_init.sql`)
