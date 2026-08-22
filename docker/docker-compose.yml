@@ -1,0 +1,57 @@
+# Local development stack. The plain-docker scripts in scripts/ are the primary
+# path (no compose plugin required); this file mirrors them for compose users.
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: radar
+      POSTGRES_PASSWORD: radar-dev
+      POSTGRES_DB: radar_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U radar -d radar_db"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    image: sunbeam-radar-api:dev
+    environment:
+      STORAGE: postgres
+      DATABASE_URL: postgresql://radar:radar-dev@db:5432/radar_db?sslmode=disable
+      PORT: "8080"
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  job:
+    build:
+      context: ..
+      dockerfile: docker/job.Dockerfile
+    image: sunbeam-radar-job:dev
+    profiles: ["job"]
+    environment:
+      STORAGE: postgres
+      DATABASE_URL: postgresql://radar:radar-dev@db:5432/radar_db?sslmode=disable
+      DOMAIN_SUFFIX: ${DOMAIN_SUFFIX:-sunbeam.pt}
+      GIT_BASE_URL: ${GIT_BASE_URL:-https://github.com/sunbeamdotpt/sbbb.git}
+      GIT_BASE_REF: ${GIT_BASE_REF:-mainline}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      RADAR_JSON_PATH: /app/data/component-versions.json
+    volumes:
+      - radar-data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  radar-data:

@@ -1,0 +1,525 @@
+# Auto-detection suppression list (RADAR_AUTO_DETECT). Entries match a scanned
+# component's upstream or name exactly and are never auto-added. Only gates
+# auto-detection — curated components below are always kept.
+#
+# These are short-name images from base/ manifests whose real registry is only
+# bound in overlay `images:` sections; the scanner would misclassify them as
+# Docker Hub repos (where they 404). Most are curated below with their proper
+# upstream; the rest are untrackable utility images.
+ignore:
+  - busybox
+  - doc
+  - kanban
+  - keygen
+  - livekit-meet
+  - nats-box
+  - nats-callout
+  - openfga
+  - opensign
+  - opensignserver
+  - plasmic-wab
+  - sso-gateway
+  - sso-ui
+  - wiki
+  - zendrite
+
+components:
+  - name: Gateway API CRDs
+    namespace: cluster
+    current: v1.5.1
+    source: github_release
+    upstream: kubernetes-sigs/gateway-api
+    link_template: https://github.com/kubernetes-sigs/gateway-api/releases/tag/{tag}
+    notes: Experimental channel required by Sunbeam Proxy 0.2.0+
+
+  - name: Cert-manager
+    namespace: cert-manager
+    current: v1.19.4
+    source: helm_chart
+    upstream: https://charts.jetstack.io::cert-manager
+    chart_version: "v1.19.4"
+    track_app_version: true
+    link_template: https://github.com/cert-manager/cert-manager/releases/tag/{app_version}
+    notes: Helm chart 1.19.4
+
+  - name: Scaleway cert-manager webhook
+    namespace: cert-manager
+    current: v0.1.1
+    source: docker_hub
+    upstream: scaleway/cert-manager-webhook-scaleway
+    link_template: https://hub.docker.com/r/scaleway/cert-manager-webhook-scaleway/tags
+    notes: Helm chart 0.4.1
+
+  - name: CFSSL issuer
+    namespace: cert-manager
+    current: 0.4.0-1
+    source: helm_chart
+    upstream: https://helm-charts.wikimedia.org/stable::cfssl-issuer
+    chart_version: "0.4.4"
+    track_app_version: true
+    link_template: https://github.com/wikimedia/operations-software-cfssl-issuer
+    notes: Helm chart 0.4.4
+
+  - name: CFSSL
+    namespace: cert-manager
+    current: v1.6.5
+    source: github_release
+    upstream: cloudflare/cfssl
+    link_template: https://github.com/cloudflare/cfssl/releases/tag/{tag}
+
+  - name: Longhorn
+    namespace: longhorn-system
+    current: v1.11.1
+    source: helm_chart
+    upstream: https://charts.longhorn.io::longhorn
+    chart_version: "1.11.1"
+    track_app_version: true
+    link_template: https://github.com/longhorn/longhorn/releases/tag/{app_version}
+    notes: Helm chart 1.11.1
+
+  - name: BuildKit
+    namespace: build
+    current: v0.28.0
+    source: github_release
+    upstream: moby/buildkit
+    link_template: https://github.com/moby/buildkit/releases/tag/{tag}
+
+  - name: crictl
+    namespace: build
+    current: v1.31.0
+    source: github_release
+    upstream: kubernetes-sigs/cri-tools
+    link_template: https://github.com/kubernetes-sigs/cri-tools/releases/tag/{tag}
+
+  - name: Sunbeam Proxy
+    namespace: ingress
+    current: v0.3.0
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/proxy
+    link_template: https://ghcr.io/sunbeamdotpt/proxy
+    notes: Custom image; current is pinned by digest in manifest
+
+  - name: OpenBao
+    namespace: openbao
+    current: v2.5.1
+    source: helm_chart
+    upstream: https://openbao.github.io/openbao-helm::openbao
+    chart_version: "0.25.6"
+    track_app_version: true
+    link_template: https://github.com/openbao/openbao/releases/tag/{app_version}
+    notes: Helm chart 0.25.6
+
+  - name: Kratos
+    namespace: ory
+    current: v25.4.0
+    source: github_release
+    upstream: ory/kratos
+    link_template: https://github.com/ory/kratos/releases/tag/{tag}
+    notes: Helm chart pinned at 0.60.1
+
+  - name: Hydra
+    namespace: ory
+    current: v25.4.0
+    source: github_release
+    upstream: ory/hydra
+    link_template: https://github.com/ory/hydra/releases/tag/{tag}
+    notes: Helm chart pinned at 0.60.1
+
+  - name: Keto
+    namespace: ory
+    current: v26.2.0
+    source: github_release
+    upstream: ory/keto
+    link_template: https://github.com/ory/keto/releases/tag/{tag}
+    notes: Helm chart pinned at 0.61.1
+
+  - name: OpenFGA
+    namespace: ory
+    current: v1.18.1
+    source: github_release
+    upstream: openfga/openfga
+    link_template: https://github.com/openfga/openfga/releases/tag/{tag}
+
+  - name: SSO Gateway
+    namespace: ory
+    current: v2026.08.5
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/sso-gateway
+    link_template: https://ghcr.io/sunbeamdotpt/sso-gateway
+    notes: Custom image
+
+  - name: SSO UI
+    namespace: ory
+    current: v2026.08.3
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/sso-ui
+    link_template: https://ghcr.io/sunbeamdotpt/sso-ui
+    notes: Custom image
+
+  - name: SSO
+    namespace: ory
+    current: v1.0.0-rc14
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/sso
+    link_template: https://ghcr.io/sunbeamdotpt/sso
+    notes: Custom image
+
+  - name: Vault Secrets Operator
+    namespace: vault-secrets-operator
+    current: v1.4.0
+    source: helm_chart
+    upstream: https://helm.releases.hashicorp.com::vault-secrets-operator
+    chart_version: "1.4.0"
+    track_app_version: true
+    link_template: https://github.com/hashicorp/vault-secrets-operator/releases/tag/v{app_version}
+    notes: Helm chart 1.4.0
+
+  - name: CloudNativePG operator
+    namespace: data
+    current: v1.30.0
+    source: helm_chart
+    upstream: https://cloudnative-pg.github.io/charts::cloudnative-pg
+    chart_version: "0.29.0"
+    track_app_version: true
+    link_template: https://github.com/cloudnative-pg/cloudnative-pg/releases/tag/v{app_version}
+    notes: Helm chart 0.29.0
+
+  - name: CloudNativePG PostgreSQL image
+    namespace: data
+    current: 18.1-system-trixie
+    source: static
+    upstream: ghcr.io/cloudnative-pg/postgresql
+    link_template: https://ghcr.io/cloudnative-pg/postgresql
+    notes: Image tag tied to CNPG release matrix
+
+  - name: Barman Cloud plugin
+    namespace: data
+    current: v0.13.0
+    source: github_release
+    upstream: cloudnative-pg/plugin-barman-cloud
+    link_template: https://github.com/cloudnative-pg/plugin-barman-cloud/releases/tag/{tag}
+
+  - name: Valkey
+    namespace: data
+    current: 8-alpine
+    source: github_release
+    upstream: valkey-io/valkey
+    link_template: https://github.com/valkey-io/valkey/releases/tag/{tag}
+
+  - name: OpenSearch
+    namespace: data
+    current: "3"
+    source: github_release
+    upstream: opensearch-project/OpenSearch
+    link_template: https://github.com/opensearch-project/OpenSearch/releases/tag/{tag}
+
+  - name: Elasticsearch exporter
+    namespace: data
+    current: v1.7.0
+    source: github_release
+    upstream: prometheus-community/elasticsearch_exporter
+    link_template: https://github.com/prometheus-community/elasticsearch_exporter/releases/tag/{tag}
+
+  - name: SearXNG
+    namespace: data
+    current: latest
+    source: static
+    upstream: searxng/searxng
+    link_template: https://github.com/searxng/searxng
+    notes: Floating tag
+
+  - name: PostgreSQL utility
+    namespace: data
+    current: 17-alpine / 18
+    source: static
+    upstream: dockerhub/postgres
+    link_template: https://hub.docker.com/_/postgres
+    notes: Multiple utility image tags used by jobs
+
+  - name: SeaweedFS
+    namespace: storage
+    current: "4.18"
+    source: github_release
+    upstream: seaweedfs/seaweedfs
+    link_template: https://github.com/seaweedfs/seaweedfs/releases/tag/{tag}
+
+  - name: NATS server
+    namespace: events
+    current: v2.14.2
+    source: helm_chart
+    upstream: https://nats-io.github.io/k8s/helm/charts::nats
+    chart_version: "2.14.2"
+    track_app_version: true
+    link_template: https://github.com/nats-io/nats-server/releases/tag/v{app_version}
+    notes: Helm chart 2.14.2
+
+  - name: NATS box
+    namespace: events
+    current: latest
+    source: github_release
+    upstream: nats-io/nats-box
+    link_template: https://github.com/nats-io/nats-box/releases/tag/{tag}
+    notes: Floating tag in overlay
+
+  - name: NATS callout
+    namespace: events
+    current: v1.0.0-rc0
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/nats-callout
+    link_template: https://ghcr.io/sunbeamdotpt/nats-callout
+    notes: Custom image
+
+  - name: LiveKit server
+    namespace: media
+    current: v1.9.0
+    source: helm_chart
+    upstream: https://helm.livekit.io::livekit-server
+    chart_version: "1.9.0"
+    track_app_version: true
+    link_template: https://github.com/livekit/livekit/releases/tag/{app_version}
+    notes: Helm chart 1.9.0
+
+  - name: lk-jwt-service
+    namespace: media
+    current: latest
+    source: github_release
+    upstream: element-hq/lk-jwt-service
+    link_template: https://github.com/element-hq/lk-jwt-service/releases/tag/{tag}
+    notes: Floating tag
+
+  - name: Zot
+    namespace: oci
+    current: v2.1.16
+    source: helm_chart
+    upstream: https://zotregistry.dev/helm-charts::zot
+    chart_version: "0.1.106"
+    track_app_version: true
+    link_template: https://github.com/project-zot/zot/releases/tag/{app_version}
+    notes: Helm chart 0.1.106
+
+  - name: Stalwart
+    namespace: stalwart
+    current: v0.16.11
+    source: github_release
+    upstream: stalwartlabs/stalwart
+    link_template: https://github.com/stalwartlabs/stalwart/releases/tag/{tag}
+
+  - name: Bulwark webmail
+    namespace: stalwart
+    current: "1.8.1"
+    source: static
+    upstream: ghcr.io/bulwarkmail/webmail
+    link_template: https://ghcr.io/bulwarkmail/webmail
+    notes: Custom/patched image
+
+  - name: Headscale
+    namespace: vpn
+    current: "0.28.0"
+    source: github_release
+    upstream: juanfont/headscale
+    link_template: https://github.com/juanfont/headscale/releases/tag/{tag}
+
+  - name: Tailscale
+    namespace: vpn
+    current: stable
+    source: github_release
+    upstream: tailscale/tailscale
+    link_template: https://github.com/tailscale/tailscale/releases/tag/{tag}
+    notes: Floating tag; manifest uses stable
+
+  - name: k6
+    namespace: monitoring
+    current: "0.54.0"
+    source: github_release
+    upstream: grafana/k6
+    link_template: https://github.com/grafana/k6/releases/tag/{tag}
+
+  - name: kube-prometheus-stack
+    namespace: monitoring
+    current: "88.3.0"
+    source: helm_chart
+    upstream: https://prometheus-community.github.io/helm-charts::kube-prometheus-stack
+    chart_version: "88.3.0"
+    track_app_version: false
+    link_template: https://github.com/prometheus-community/helm-charts/releases/tag/kube-prometheus-stack-{version}
+    notes: Bundle chart; version is the chart version
+
+  - name: Loki
+    namespace: monitoring
+    current: v3.6.5
+    source: helm_chart
+    upstream: https://grafana.github.io/helm-charts::loki
+    chart_version: "6.53.0"
+    track_app_version: true
+    link_template: https://github.com/grafana/loki/releases/tag/v{app_version}
+    notes: Helm chart 6.53.0
+
+  - name: Tempo
+    namespace: monitoring
+    current: v2.9.0
+    source: helm_chart
+    upstream: https://grafana.github.io/helm-charts::tempo
+    chart_version: "1.24.4"
+    track_app_version: true
+    link_template: https://github.com/grafana/tempo/releases/tag/v{app_version}
+    notes: Helm chart 1.24.4
+
+  - name: Pyroscope
+    namespace: monitoring
+    current: v2.2.1
+    source: helm_chart
+    upstream: https://grafana.github.io/helm-charts::pyroscope
+    chart_version: "2.2.1"
+    track_app_version: true
+    link_template: https://github.com/grafana/pyroscope/releases/tag/v{app_version}
+    notes: Helm chart 2.2.1
+
+  - name: Blackbox exporter
+    namespace: monitoring
+    current: v0.28.0
+    source: helm_chart
+    upstream: https://prometheus-community.github.io/helm-charts::prometheus-blackbox-exporter
+    chart_version: "11.17.2"
+    track_app_version: true
+    link_template: https://github.com/prometheus/blackbox_exporter/releases/tag/{app_version}
+    notes: Helm chart 11.17.2
+
+  - name: Grafana Alloy
+    namespace: monitoring
+    current: v1.7.0 / v1.18.1
+    source: github_release
+    upstream: grafana/alloy
+    link_template: https://github.com/grafana/alloy/releases/tag/{tag}
+    notes: Two DaemonSets pin different tags
+
+  - name: configmap-reload
+    namespace: monitoring
+    current: v0.14.0
+    source: github_release
+    upstream: jimmidyson/configmap-reload
+    link_template: https://github.com/jimmidyson/configmap-reload/releases/tag/{tag}
+
+  - name: GoAlert
+    namespace: monitoring
+    current: v0.34.1
+    source: github_release
+    upstream: target/goalert
+    link_template: https://github.com/target/goalert/releases/tag/{tag}
+
+  - name: curl
+    namespace: monitoring / stalwart / data
+    current: 8.9.1 / 8.10.1 / latest
+    source: github_release
+    upstream: curl/curl
+    link_template: https://github.com/curl/curl/releases/tag/{tag}
+    notes: Multiple tags in use; floating latest in some places
+
+  - name: matrix-alertmanager-receiver
+    namespace: monitoring
+    current: latest
+    source: github_release
+    upstream: metio/matrix-alertmanager-receiver
+    link_template: https://github.com/metio/matrix-alertmanager-receiver/releases/tag/{tag}
+    notes: Floating tag
+
+  - name: statsd-exporter
+    namespace: wiki
+    current: v0.28.0
+    source: github_release
+    upstream: prometheus/statsd_exporter
+    link_template: https://github.com/prometheus/statsd_exporter/releases/tag/{tag}
+
+  - name: php-fpm-exporter
+    namespace: wiki
+    current: "2"
+    source: github_release
+    upstream: hipages/php-fpm_exporter
+    link_template: https://github.com/hipages/php-fpm_exporter/releases/tag/{tag}
+
+  - name: Zendrite
+    namespace: matrix
+    current: "3.2.0"
+    source: static
+    upstream: codefloe.com/pat-s/zendrite
+    link_template: https://codefloe.com/pat-s/zendrite
+    notes: Custom fork
+
+  - name: Sol
+    namespace: matrix
+    current: latest
+    source: static
+    upstream: src.sunbeam.pt/studio/sol
+    link_template: https://src.sunbeam.pt/studio/sol
+    notes: Custom image; floating tag
+
+  - name: WFE server
+    namespace: wfe
+    current: latest
+    source: static
+    upstream: src.sunbeam.pt/studio/wfe
+    link_template: https://src.sunbeam.pt/studio/wfe
+    notes: Custom image; floating tag
+
+  - name: Press
+    namespace: press
+    current: latest
+    source: static
+    upstream: oci.sunbeam.pt/studio/press
+    link_template: https://oci.sunbeam.pt/studio/press
+    notes: Custom image; floating tag
+
+  - name: Doc
+    namespace: doc
+    current: latest
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/doc
+    link_template: https://ghcr.io/sunbeamdotpt/doc
+    notes: Custom image; floating tag
+
+  - name: Kanban
+    namespace: kanban
+    current: v2026.07.11
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/kanban
+    link_template: https://ghcr.io/sunbeamdotpt/kanban
+    notes: Custom image
+
+  - name: Keygen API
+    namespace: keygen
+    current: v0.1.0
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/keygen-api
+    link_template: https://ghcr.io/sunbeamdotpt/keygen-api
+    notes: Custom image
+
+  - name: Wiki
+    namespace: wiki
+    current: latest
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/wiki
+    link_template: https://ghcr.io/sunbeamdotpt/wiki
+    notes: Custom image; floating tag
+
+  - name: OpenSign
+    namespace: signatures
+    current: v2.41.1-sunbeam.12
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/opensign
+    link_template: https://ghcr.io/sunbeamdotpt/opensign
+    notes: Custom fork
+
+  - name: OpenSignServer
+    namespace: signatures
+    current: v2.41.1-sunbeam.12
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/opensignserver
+    link_template: https://ghcr.io/sunbeamdotpt/opensignserver
+    notes: Custom fork
+
+  - name: Beam UI
+    namespace: devtools
+    current: latest
+    source: static
+    upstream: ghcr.io/sunbeamdotpt/beam-ui
+    link_template: https://ghcr.io/sunbeamdotpt/beam-ui
+    notes: Custom image; floating tag

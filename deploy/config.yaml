@@ -1,0 +1,15 @@
+# Non-secret configuration shared by the API Deployment and the inventory CronJob.
+# DOMAIN_SUFFIX is substituted at deploy time (sunbeam service apply).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radar-config
+  namespace: radar
+data:
+  STORAGE: "postgres"
+  DOMAIN_SUFFIX: "DOMAIN_SUFFIX"
+  GIT_BASE_URL: "https://github.com/sunbeamdotpt/sbbb.git"
+  GIT_BASE_REF: "mainline"
+  GIT_BASE_REQUIRED: "true"
+  RADAR_AUTO_DETECT: "false"
+  PORT: "8080"

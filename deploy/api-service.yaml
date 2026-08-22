@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: radar-api
+  namespace: radar
+spec:
+  selector:
+    app: radar-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

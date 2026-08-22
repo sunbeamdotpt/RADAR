@@ -1,0 +1,36 @@
+{
+  "name": "@sunbeam/radar",
+  "version": "0.1.0",
+  "exports": {
+    "./schema": "./src/schema/component.ts",
+    "./domain": "./src/domain/version.ts"
+  },
+  "imports": {
+    "@std/yaml": "jsr:@std/yaml@^1.0.5",
+    "@db/postgres": "jsr:@db/postgres@^0.19.3"
+  },
+  "tasks": {
+    "serve": "deno run --allow-env --allow-net --allow-read src/server/main.ts",
+    "job": "deno run --allow-env --allow-net --allow-read --allow-write --allow-run=git src/job/main.ts",
+    "test": "deno test --allow-all tests/",
+    "test:unit": "deno test --allow-all tests/unit/",
+    "test:integration": "deno test --allow-all tests/integration/",
+    "test:parity": "deno test --allow-all tests/parity/",
+    "coverage": "rm -rf coverage && deno test --allow-all --coverage=coverage tests/unit/ tests/parity/ tests/integration/ && deno coverage coverage --lcov --output=coverage/lcov.info && deno run --allow-read tools/check_coverage.ts",
+    "check": "deno fmt --check && deno lint && deno check src/job/main.ts src/server/main.ts && deno task test:unit && deno task test:parity && deno task coverage"
+  },
+  "fmt": {
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "compilerOptions": {
+    "strict": true
+  }
+}
