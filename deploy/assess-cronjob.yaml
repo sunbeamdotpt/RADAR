@@ -1,0 +1,62 @@
+# Assess job (pipeline step 2): reads the latest inventory run from postgres,
+# assesses breaking-change risk, writes assessments back. Runs 30 minutes after
+# the inventory CronJob. Suspended by default: trigger manually with
+#   kubectl -n radar create job --from=cronjob/radar-assess radar-assess-manual
+# The job image's entrypoint is the inventory job; command/args override it here.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: radar-assess
+  namespace: radar
+  labels:
+    sunbeam.pt/service: radar
+    sunbeam.pt/category: tools
+spec:
+  # 30 minutes after radar-inventory (23 */6 * * *)
+  schedule: "53 */6 * * *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: radar-assess
+        spec:
+          # default SA with token mounted: VSO authenticates the pod for radar-db-creds.
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: radar-assess
+              image: sunbeam-radar-job
+              command: ["deno"]
+              args:
+                - "run"
+                - "--allow-env"
+                - "--allow-net"
+                - "--allow-read"
+                - "--allow-write"
+                - "src/assess/main.ts"
+              envFrom:
+                - configMapRef:
+                    name: radar-config
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: radar-db-creds
+                      key: dsn
+              resources:
+                limits:
+                  memory: 512Mi
+                  cpu: 500m
+                requests:
+                  memory: 128Mi
+                  cpu: 100m

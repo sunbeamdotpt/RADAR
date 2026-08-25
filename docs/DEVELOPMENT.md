@@ -19,6 +19,7 @@ See docs/ARCHITECTURE.md for the module tour. Tests mirror `src/`:
 
 ```bash
 deno task job                     # run the inventory job (STORAGE=json default)
+deno task assess                  # run the assess job (step 2; needs an inventory run first)
 deno task serve                   # run the API on :8080
 deno task test                    # everything (unit + parity + integration)
 deno task test:unit               # fast loop
@@ -31,6 +32,7 @@ deno task check                   # fmt + lint + typecheck + tests + gate
 ```bash
 scripts/dev-up.sh        # postgres:18-alpine + API on 127.0.0.1:8080
 scripts/dev-job.sh       # one-shot job container (clone + fetch + save)
+scripts/dev-assess.sh    # one-shot assess container (needs an inventory run first)
 scripts/dev-down.sh      # stop; add --volumes to drop data
 ```
 
@@ -74,6 +76,69 @@ The behaviors below define the report (all covered by unit tests):
   by `(version_tuple, tag)` lexicographic max.
 - Fallback: previous `latest` reused on failure; otherwise `latest: "error"` and
   `notes: "Fetch failed: …"`. `update_available` computed unconditionally.
+
+## Assessments (step 2)
+
+The assess job (`src/assess/`) runs after the inventory job: it reads the latest inventory run from
+the store, assesses breaking-change risk per component, and writes an assessment report back to the
+same store (the `assessments` table in postgres, or `RADAR_ASSESS_JSON_PATH` with `STORAGE=json`).
+
+```bash
+deno task assess                    # STORAGE=json → ./data/component-versions.assessments.json
+scripts/dev-assess.sh               # against the dev stack (reuses the job image, entrypoint overridden)
+RADAR_ASSESS_UPDATES_ONLY=1 scripts/dev-assess.sh   # assess only components with update_available
+RADAR_OFFLINE=1 scripts/dev-assess.sh               # no release-note fetches (soft-fail anyway)
+```
+
+### Seed hints
+
+Components in the seed can carry optional hint fields the engine consumes (schema: docs/SCHEMA.md).
+They are parsed from the seed but never emitted in inventory report records:
+
+```yaml
+- name: Kratos
+  namespace: ory
+  current: v25.4.0
+  source: github_release
+  upstream: ory/kratos
+  versioning_scheme: ory # version numbers that look like semver but aren't
+- name: Gateway API CRDs
+  # …
+  channel: experimental # breaking changes allowed between releases
+- name: Tempo
+  # …
+  eol_version_line: "2.9" # warn when this line is within 6 months of
+  eol_date: "2026-12-31" # its EOL date
+  eol_replacement: Tempo 2.10 or 3.0
+- name: CloudNativePG PostgreSQL image
+  # …
+  deprecated: Migrate to standard/minimal + Barman Cloud plugin # presence marks it deprecated
+```
+
+When a hint is absent, well-known upstream shapes are auto-detected as a fallback (ory upstreams →
+`versioning_scheme=ory`, OpenSearch → `breaking_change_policy=major_only`).
+
+### The layered engine
+
+`src/assess/engine.ts` runs layers highest-confidence first; the first decisive verdict wins (the
+winning layer is recorded in each assessment's `layer` field):
+
+1. **L0 prechecks** (`prechecks.ts`) — floating tags, `deprecated` hint, EOL window, custom-fork
+   suffixes, false-positive latest tags. No external data needed.
+2. **L0h version-scheme hints** — `versioning_scheme` / `breaking_change_policy`, applied before
+   version numbers are read as semver.
+3. **L0 major bump** — `latest.major > current.major` → `breaking`.
+4. **L1 structured diffs** (`structured.ts`) — Helm `values.schema.json`, CRD manifests, `go.mod`;
+   only when the data is injected (acquisition is out of scope for the engine).
+5. **L2 release-note structure** (`notes.ts`) — breaking/removal/deprecation section detection over
+   fetched release notes (`fetch.ts`, soft-fail) plus curated `notes`.
+6. **L3 commit analysis** (`commits.ts`) — conventional-commit breaking markers, when commits are
+   injected.
+7. **L4 weighted keywords** (`keywords.ts`) — scored patterns, positive for risk, negative for
+   safety signals.
+8. **Channel hint** — `channel: experimental` → `breaking`; runs late so curated context outranks
+   the gap heuristic.
+9. **L5 gap fallback** — same-major minor gap ≤2 → `likely_safe`, >10 → `review`; else `unknown`.
 
 ## Coverage gate
 

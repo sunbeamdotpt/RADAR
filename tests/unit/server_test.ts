@@ -1,15 +1,24 @@
 import { assertEquals } from "jsr:@std/assert@^1";
 import { createHandler } from "../../src/server/routes.ts";
+import type { AssessmentReport } from "../../src/schema/assessment.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
-import type { Store } from "../../src/store/store.ts";
+import type { AssessmentStore, Store } from "../../src/store/store.ts";
 
-class StubStore implements Store {
+class StubStore implements Store, AssessmentStore {
   healthy = true;
+  assessments: AssessmentReport | null = null;
   constructor(public report: InventoryReport | null) {}
   loadPrevious(): Promise<InventoryReport | null> {
     return Promise.resolve(this.report);
   }
   saveReport(): Promise<void> {
+    return Promise.resolve();
+  }
+  loadLatestAssessments(): Promise<AssessmentReport | null> {
+    return Promise.resolve(this.assessments);
+  }
+  saveAssessments(report: AssessmentReport): Promise<void> {
+    this.assessments = report;
     return Promise.resolve();
   }
   healthCheck(): Promise<boolean> {
@@ -117,4 +126,62 @@ Deno.test("unknown paths and non-GET methods are rejected", async () => {
   const handler = createHandler(new StubStore(REPORT));
   assertEquals((await get(handler, "/nope")).status, 404);
   assertEquals((await get(handler, "/api/v1/inventory", "POST")).status, 405);
+});
+
+const ASSESSMENTS: AssessmentReport = {
+  generated_at: "2026-08-21 13:00:00 UTC",
+  inventory_generated_at: "2026-08-21 12:00:00 UTC",
+  assessments: [
+    {
+      name: "Kratos",
+      current: "v25.4.0",
+      latest: "v26.2.0",
+      risk_level: "review",
+      reason: "Ory non-semver scheme",
+      action: "Review release notes",
+      layer: "layer_0_hints",
+      details: { hint: "versioning_scheme=ory" },
+    },
+    {
+      name: "Valkey",
+      current: "8-alpine",
+      latest: "9.1.1",
+      risk_level: "breaking",
+      reason: "Major version bump: 8.0.0 → 9.1.1",
+      action: "Read migration guide",
+      layer: "layer_0_precheck",
+      details: {},
+    },
+  ],
+};
+
+Deno.test("assessment endpoints 404 before the first assess run", async () => {
+  const handler = createHandler(new StubStore(REPORT));
+  for (const path of ["/api/v1/assessments", "/api/v1/assessments/Kratos"]) {
+    const res = await get(handler, path);
+    assertEquals(res.status, 404, path);
+    assertEquals((await res.json()).error, "no assessments yet — run the radar assess job first");
+  }
+});
+
+Deno.test("assessments are served, filterable, and addressable by name", async () => {
+  const store = new StubStore(REPORT);
+  store.assessments = ASSESSMENTS;
+  const handler = createHandler(store);
+
+  const all = await (await get(handler, "/api/v1/assessments")).json();
+  assertEquals(all.assessments.length, 2);
+  assertEquals(all.inventory_generated_at, "2026-08-21 12:00:00 UTC");
+
+  const breaking = await (await get(handler, "/api/v1/assessments?risk_level=breaking")).json();
+  assertEquals(breaking.assessments.map((a: { name: string }) => a.name), ["Valkey"]);
+
+  const bad = await get(handler, "/api/v1/assessments?risk_level=spicy");
+  assertEquals(bad.status, 400);
+
+  const one = await (await get(handler, "/api/v1/assessments/Kratos")).json();
+  assertEquals(one.risk_level, "review");
+
+  const missing = await get(handler, "/api/v1/assessments/Nope");
+  assertEquals(missing.status, 404);
 });

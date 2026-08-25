@@ -16,7 +16,8 @@ COPY --chown=deno:deno seed ./seed
 RUN mkdir -p /app/data && chown deno:deno /app/data
 
 USER deno
-RUN deno cache --frozen src/job/main.ts
+RUN deno cache --frozen src/job/main.ts \
+  && deno cache --frozen src/assess/main.ts
 
 # ENTRYPOINT (not CMD): the base image's own ENTRYPOINT is ["deno"], so a plain
 # CMD would be *replaced* by any args passed to `docker run image --bootstrap`,

@@ -1,21 +1,11 @@
 import { log } from "../log.ts";
-import { JsonStore } from "../store/json_store.ts";
-import { PostgresStore } from "../store/postgres_store.ts";
-import type { Store } from "../store/store.ts";
+import { createStore } from "../store/factory.ts";
 import { loadServerConfig } from "./config.ts";
 import { createHandler } from "./routes.ts";
 
 async function main(): Promise<void> {
   const config = loadServerConfig(Deno.env.toObject());
-
-  let store: Store;
-  if (config.storage === "postgres") {
-    const pg = new PostgresStore(config.databaseUrl!);
-    await pg.init();
-    store = pg;
-  } else {
-    store = new JsonStore(config.jsonPath);
-  }
+  const store = await createStore(config);
 
   const abort = new AbortController();
   const shutdown = () => {

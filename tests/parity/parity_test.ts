@@ -27,6 +27,30 @@ Deno.test({
     try {
       const { pythonCache, previousRecords } = await buildFixtures(SEED_PATH);
 
+      // The reference implementation's strict constructor rejects unknown keys;
+      // assessor hints (channel, versioning_scheme, …) are RADAR-only, so the
+      // reference runs against a hint-stripped copy of the seed.
+      const strippedSeed = join(workDir, "seed.python.yaml");
+      {
+        const { parse, stringify } = await import("@std/yaml");
+        const doc = parse(await Deno.readTextFile(SEED_PATH)) as {
+          components: Record<string, unknown>[];
+        };
+        const HINT_KEYS = [
+          "channel",
+          "versioning_scheme",
+          "breaking_change_policy",
+          "eol_version_line",
+          "eol_date",
+          "eol_replacement",
+          "deprecated",
+        ];
+        const components = doc.components.map((c) =>
+          Object.fromEntries(Object.entries(c).filter(([k]) => !HINT_KEYS.includes(k)))
+        );
+        await Deno.writeTextFile(strippedSeed, stringify({ components }));
+      }
+
       // --- Python run ---
       const home = join(workDir, "home");
       await Deno.mkdir(join(home, ".cache", "sbbb"), { recursive: true });
@@ -36,7 +60,7 @@ Deno.test({
       );
       const pythonOut = join(workDir, "python.json");
       const python = await new Deno.Command("python3", {
-        args: [PYTHON_SCRIPT, "--config", SEED_PATH, "--json", "--json-out", pythonOut],
+        args: [PYTHON_SCRIPT, "--config", strippedSeed, "--json", "--json-out", pythonOut],
         env: {
           HOME: home,
           HTTPS_PROXY: "http://127.0.0.1:9",

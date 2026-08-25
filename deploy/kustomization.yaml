@@ -10,6 +10,7 @@ resources:
   - api-deployment.yaml
   - api-service.yaml
   - job-cronjob.yaml
+  - assess-cronjob.yaml
 
 # Short image names — the registry is wired here, matching sbbb conventions.
 images:

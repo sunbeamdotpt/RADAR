@@ -1,3 +1,4 @@
+import type { AssessmentReport } from "../schema/assessment.ts";
 import type { InventoryReport } from "../schema/component.ts";
 
 /** Metadata recorded alongside each run. */
@@ -23,4 +24,16 @@ export interface Store {
   healthCheck(): Promise<boolean>;
   /** Release any held resources. */
   close(): Promise<void>;
+}
+
+/**
+ * Persistence for step-2 assessments. Assessments attach to the inventory run
+ * they were computed from (run_id), so history pairs across both pipeline
+ * steps. Readers get the assessments of the latest run that has any.
+ */
+export interface AssessmentStore {
+  /** Assessments for the latest assessed inventory run, or null if none yet. */
+  loadLatestAssessments(): Promise<AssessmentReport | null>;
+  /** Persist an assessment report against the current latest inventory run. */
+  saveAssessments(report: AssessmentReport): Promise<void>;
 }

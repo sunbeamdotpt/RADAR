@@ -31,6 +31,7 @@ components:
     upstream: kubernetes-sigs/gateway-api
     link_template: https://github.com/kubernetes-sigs/gateway-api/releases/tag/{tag}
     notes: Experimental channel required by Sunbeam Proxy 0.2.0+
+    channel: experimental
 
   - name: Cert-manager
     namespace: cert-manager
@@ -116,6 +117,7 @@ components:
     upstream: ory/kratos
     link_template: https://github.com/ory/kratos/releases/tag/{tag}
     notes: Helm chart pinned at 0.60.1
+    versioning_scheme: ory
 
   - name: Hydra
     namespace: ory
@@ -124,6 +126,7 @@ components:
     upstream: ory/hydra
     link_template: https://github.com/ory/hydra/releases/tag/{tag}
     notes: Helm chart pinned at 0.60.1
+    versioning_scheme: ory
 
   - name: Keto
     namespace: ory
@@ -132,6 +135,7 @@ components:
     upstream: ory/keto
     link_template: https://github.com/ory/keto/releases/tag/{tag}
     notes: Helm chart pinned at 0.61.1
+    versioning_scheme: ory
 
   - name: OpenFGA
     namespace: ory
@@ -191,6 +195,7 @@ components:
     upstream: ghcr.io/cloudnative-pg/postgresql
     link_template: https://ghcr.io/cloudnative-pg/postgresql
     notes: Image tag tied to CNPG release matrix
+    deprecated: CNPG system images are deprecated. Migrate to standard/minimal + Barman Cloud plugin.
 
   - name: Barman Cloud plugin
     namespace: data
@@ -212,6 +217,7 @@ components:
     source: github_release
     upstream: opensearch-project/OpenSearch
     link_template: https://github.com/opensearch-project/OpenSearch/releases/tag/{tag}
+    breaking_change_policy: major_only
 
   - name: Elasticsearch exporter
     namespace: data
@@ -363,6 +369,9 @@ components:
     track_app_version: true
     link_template: https://github.com/grafana/tempo/releases/tag/v{app_version}
     notes: Helm chart 1.24.4
+    eol_version_line: "2.9"
+    eol_date: "2026-12-31"
+    eol_replacement: Tempo 2.10 or 3.0
 
   - name: Pyroscope
     namespace: monitoring

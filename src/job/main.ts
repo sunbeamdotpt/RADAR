@@ -6,24 +6,9 @@ import { bootstrapSeedYaml, scanBaseManifests } from "../scan/manifests.ts";
 import { parseSeedDocument } from "../schema/component.ts";
 import { FetchHttpClient, OfflineHttpClient } from "../sources/http.ts";
 import { JsonStore } from "../store/json_store.ts";
-import { PostgresStore } from "../store/postgres_store.ts";
-import type { Store } from "../store/store.ts";
+import { createStore } from "../store/factory.ts";
 import { loadJobConfig } from "./config.ts";
 import { runInventory } from "./inventory.ts";
-
-/** Open and initialize the configured store backend. */
-export async function createStore(config: {
-  storage: "json" | "postgres";
-  jsonPath: string;
-  databaseUrl?: string;
-}): Promise<Store> {
-  if (config.storage === "postgres") {
-    const store = new PostgresStore(config.databaseUrl!);
-    await store.init();
-    return store;
-  }
-  return new JsonStore(config.jsonPath);
-}
 
 async function main(): Promise<number> {
   let config;

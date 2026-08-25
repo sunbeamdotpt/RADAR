@@ -18,8 +18,27 @@ export const COMPONENT_SOURCES = [
 
 export type ComponentSource = (typeof COMPONENT_SOURCES)[number];
 
+/**
+ * Optional per-component hints for the step-2 assessor. Curated in the seed,
+ * never emitted in report records (the report shape is contractual).
+ */
+export interface ComponentHints {
+  /** e.g. "experimental" — breaking changes allowed between releases. */
+  channel?: string;
+  /** e.g. "ory" — version numbers that look like semver but aren't. */
+  versioning_scheme?: string;
+  /** e.g. "major_only" — project policy: breaking changes only in major versions. */
+  breaking_change_policy?: string;
+  /** EOL tracking: version line ("2.9"), date ("2026-12-31"), and replacement text. */
+  eol_version_line?: string;
+  eol_date?: string;
+  eol_replacement?: string;
+  /** Presence marks the component deprecated; the value is the migration message. */
+  deprecated?: string;
+}
+
 /** A registry entry enriched with fetch results (in-memory working type). */
-export interface Component {
+export interface Component extends ComponentHints {
   name: string;
   namespace: string;
   current: string;
@@ -114,6 +133,14 @@ const SEED_KEYS = new Set([
   "chart_version",
   "track_app_version",
   "latest",
+  // Assessor hints (curated, never emitted in report records)
+  "channel",
+  "versioning_scheme",
+  "breaking_change_policy",
+  "eol_version_line",
+  "eol_date",
+  "eol_replacement",
+  "deprecated",
 ]);
 
 function parseSource(value: unknown, ctx: string): ComponentSource {
@@ -142,7 +169,7 @@ export function parseSeedComponent(raw: unknown, index: number): Component {
       throw new SchemaError(`${ctx}: missing required key "${key}"`);
     }
   }
-  return {
+  const component: Component = {
     name: requireString(raw, "name", ctx),
     namespace: requireString(raw, "namespace", ctx),
     current: requireString(raw, "current", ctx),
@@ -157,6 +184,23 @@ export function parseSeedComponent(raw: unknown, index: number): Component {
     update_available: false,
     cached: false,
   };
+  // Assessor hints: present-only, so they stay out of report records.
+  for (
+    const key of [
+      "channel",
+      "versioning_scheme",
+      "breaking_change_policy",
+      "eol_version_line",
+      "eol_date",
+      "eol_replacement",
+      "deprecated",
+    ] as const
+  ) {
+    if (raw[key] !== undefined && raw[key] !== null) {
+      component[key] = requireString(raw, key, ctx);
+    }
+  }
+  return component;
 }
 
 /** Validate the whole seed document ({components: [...]}). */

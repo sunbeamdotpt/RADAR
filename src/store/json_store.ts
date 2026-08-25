@@ -1,13 +1,22 @@
 import { dirname } from "jsr:@std/path@^1";
+import { type AssessmentReport, parseAssessmentReport } from "../schema/assessment.ts";
 import { type InventoryReport, parseReportDocument } from "../schema/component.ts";
-import type { RunMeta, Store } from "./store.ts";
+import type { AssessmentStore, RunMeta, Store } from "./store.ts";
 
 /**
- * Development store: a single local JSON file.
- * The file is both the job's output and its next-run input (previous state).
+ * Development store: local JSON files.
+ * The inventory file is both the job's output and its next-run input
+ * (previous state); assessments live in a sibling file.
  */
-export class JsonStore implements Store {
-  constructor(private readonly path: string) {}
+export class JsonStore implements Store, AssessmentStore {
+  private readonly assessmentsPath: string;
+
+  constructor(
+    private readonly path: string,
+    assessmentsPath?: string,
+  ) {
+    this.assessmentsPath = assessmentsPath ?? path.replace(/\.json$/, "") + ".assessments.json";
+  }
 
   async loadPrevious(): Promise<InventoryReport | null> {
     let text: string;
@@ -23,6 +32,22 @@ export class JsonStore implements Store {
   async saveReport(report: InventoryReport, _meta: RunMeta): Promise<void> {
     await Deno.mkdir(dirname(this.path), { recursive: true });
     await Deno.writeTextFile(this.path, JSON.stringify(report, null, 2));
+  }
+
+  async loadLatestAssessments(): Promise<AssessmentReport | null> {
+    let text: string;
+    try {
+      text = await Deno.readTextFile(this.assessmentsPath);
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return null;
+      throw err;
+    }
+    return parseAssessmentReport(JSON.parse(text));
+  }
+
+  async saveAssessments(report: AssessmentReport): Promise<void> {
+    await Deno.mkdir(dirname(this.assessmentsPath), { recursive: true });
+    await Deno.writeTextFile(this.assessmentsPath, JSON.stringify(report, null, 2));
   }
 
   healthCheck(): Promise<boolean> {

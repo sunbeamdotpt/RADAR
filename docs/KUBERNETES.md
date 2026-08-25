@@ -15,7 +15,8 @@ deploy/
 ├── vault-secrets.yaml    # VaultAuth vso-auth + VaultDynamicSecret radar-db-creds (dsn key)
 ├── api-deployment.yaml   # 1 replica, probes /__lbheartbeat__ + /__heartbeat__
 ├── api-service.yaml      # ClusterIP :8080
-└── job-cronjob.yaml      # suspended CronJob "23 */6 * * *", manual trigger or wfe later
+├── job-cronjob.yaml      # suspended CronJob "23 */6 * * *", manual trigger or wfe later
+└── assess-cronjob.yaml   # suspended CronJob "53 */6 * * *" (step 2, 30 min after inventory)
 ```
 
 Render locally:
@@ -38,6 +39,18 @@ kustomize build deploy
 
   Un-suspend for the 4×/day schedule, or let wfe invoke the same image/command — the job is
   idempotent and safe to re-run.
+- **Assess CronJob** (`deploy/assess-cronjob.yaml`) — pipeline step 2. Reuses the same
+  `sunbeam-radar-job` image; since that image's entrypoint is the inventory job, the pod overrides
+  it with `command: ["deno"]` + `args: ["run", …, "src/assess/main.ts"]`. Scheduled `53 */6 * * *`,
+  30 minutes after the inventory CronJob, and also suspended by default; trigger manually:
+
+  ```bash
+  kubectl -n radar create job --from=cronjob/radar-assess radar-assess-manual
+  kubectl -n radar logs job/radar-assess-manual
+  ```
+
+  Same env wiring as the inventory job (`radar-config` + `radar-db-creds`); it reads the latest
+  inventory run and needs one to exist.
 - Both pods run as the `default` service account **with a token mounted** — VSO's Kubernetes auth
   needs it to sync `radar-db-creds`. `runAsNonRoot` + `seccompProfile: RuntimeDefault` are set at
   the pod level.
@@ -48,8 +61,8 @@ These mirror how kanban/goalert are wired. Nothing below exists today.
 
 1. **Database** — create `radar_db` and the `radar` user on the CNPG cluster via an idempotent Job
    in `base/data` (copy `base/data/postgres-goalert-db-job.yaml`, swap names). RADAR's schema
-   (`db/migrations/001_init.sql`) is applied by the app itself; the Job only needs `CREATE USER` /
-   `CREATE DATABASE` / `GRANT`.
+   (`db/migrations/001_init.sql`, `002_assessments.sql`) is applied by the app itself; the Job only
+   needs `CREATE USER` / `CREATE DATABASE` / `GRANT`.
 2. **OpenBao static role** — seed the database secrets-engine role `static-creds/radar` (see
    `base/openbao/vault-bootstrap-job.yaml` for the pattern), rotation matching the other app roles.
    This is what `deploy/vault-secrets.yaml` reads via `static-creds/radar`.
