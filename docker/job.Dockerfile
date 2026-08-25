@@ -18,5 +18,8 @@ RUN mkdir -p /app/data && chown deno:deno /app/data
 USER deno
 RUN deno cache --frozen src/job/main.ts
 
+# ENTRYPOINT (not CMD): the base image's own ENTRYPOINT is ["deno"], so a plain
+# CMD would be *replaced* by any args passed to `docker run image --bootstrap`,
+# producing `deno --bootstrap`. With ENTRYPOINT, extra args land on the script.
 # --allow-write: git base clone (temp dir) + JSON store/mirror. --allow-run=git: clone.
-CMD ["deno", "run", "--allow-env", "--allow-net", "--allow-read", "--allow-write", "--allow-run=git", "src/job/main.ts"]
+ENTRYPOINT ["deno", "run", "--allow-env", "--allow-net", "--allow-read", "--allow-write", "--allow-run=git", "src/job/main.ts"]

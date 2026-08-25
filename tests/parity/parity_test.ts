@@ -89,10 +89,10 @@ Deno.test({
         assertEquals(ts, py, `record mismatch for component ${py.name} (index ${i})`);
       }
 
-      // Reference copy for review/debugging.
+      // Reference copy for review/debugging (trailing newline keeps deno fmt happy).
       await Deno.writeTextFile(
         new URL("./fixtures/golden.python.json", import.meta.url),
-        JSON.stringify(pythonReport, null, 2),
+        JSON.stringify(pythonReport, null, 2) + "\n",
       );
     } finally {
       await Deno.remove(workDir, { recursive: true });
