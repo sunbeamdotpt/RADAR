@@ -158,7 +158,9 @@ With `RADAR_AUTO_DETECT=true`, the job appends components it finds in the cloned
 `upstream` isn't tracked yet (helm charts, kustomize `images:`, workload container images, GitHub
 release URLs — the same shapes `--bootstrap` scans). Auto-added entries carry the scanner's
 "Auto-detected from …" note, are deduped by upstream, and are fetched/drifted/stored like curated
-ones from their first run. Try it against the dev stack:
+ones from their first run. All auto-detect comparisons — upstream, name, and the `ignore:` list —
+are case-insensitive: a scanned "valkey" against a curated "Valkey" is the same component and is
+skipped, whatever the upstream source. Try it against the dev stack:
 
 ```bash
 RADAR_AUTO_DETECT=1 scripts/dev-job.sh
@@ -177,5 +179,7 @@ with the short-name base-manifest images whose real registry lives in overlay `i
 - `ignore` only gates auto-detection; curated components are always kept.
 - It does not remove anything already in the store — delete junk runs first (dev:
   `scripts/dev-down.sh --volumes`), or wait for a pruning feature.
-- Auto-added names are unique per report; collisions are disambiguated as `name (namespace)` and
-  unresolvable ones are skipped with a warning in the job logs.
+- Auto-added names are unique per report; an exact-case collision with a _different_ upstream is
+  disambiguated as `name (namespace)`, while a case-only difference (scanned "valkey" vs curated
+  "Valkey") is treated as already tracked and skipped. Unresolvable collisions are skipped with a
+  warning in the job logs.

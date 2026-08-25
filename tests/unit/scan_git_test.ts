@@ -452,6 +452,60 @@ Deno.test("addAutoDetectedComponents honors the ignore list by upstream and name
   assertEquals(curated.map((c) => c.name), ["CFSSL", "widget"]);
 });
 
+Deno.test("addAutoDetectedComponents is case-insensitive for upstream, name, and ignore", async () => {
+  const { addAutoDetectedComponents } = await import("../../src/scan/manifests.ts");
+  const curated = [parseSeedComponent({
+    name: "Valkey",
+    namespace: "data",
+    current: "8-alpine",
+    source: "github_release",
+    upstream: "valkey-io/valkey",
+  }, 0)];
+  const scanned = [
+    // Same software, different upstream source and different-case name → skipped.
+    {
+      name: "valkey",
+      namespace: "data",
+      current: "8-alpine",
+      source: "docker_hub" as const,
+      upstream: "valkey/valkey",
+      link_template: "",
+      notes: "",
+    },
+    // Upstream differs only by case → deduped like an exact match.
+    {
+      name: "Valkey UI",
+      namespace: "data",
+      current: "1.0",
+      source: "static" as const,
+      upstream: "VALKEY-IO/VALKEY",
+      link_template: "",
+      notes: "",
+    },
+    // Ignore list matches case-insensitively.
+    {
+      name: "Wiki",
+      namespace: "wiki",
+      current: "latest",
+      source: "docker_hub" as const,
+      upstream: "wiki",
+      link_template: "",
+      notes: "",
+    },
+  ];
+  const { added, skipped, ignored } = addAutoDetectedComponents(
+    curated,
+    scanned,
+    new Set(["WIKI"]),
+  );
+  assertEquals(added, 0);
+  assertEquals(ignored, 1);
+  // Case-variant upstream dedupe is silent (same as exact upstream dedupe).
+  assertEquals(skipped.length, 1);
+  assertEquals(skipped[0], 'valkey/valkey (already tracked as "Valkey")');
+  assertEquals(curated.map((c) => c.name), ["Valkey"]);
+});
+
 Deno.test("parseSeedIgnore validates the optional ignore list", async () => {
   const { parseSeedIgnore, SchemaError } = await import("../../src/schema/component.ts");
   assertEquals(parseSeedIgnore({ components: [] }), []);

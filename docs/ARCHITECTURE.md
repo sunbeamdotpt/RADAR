@@ -61,8 +61,9 @@ store     │  load latest ──► layered engine (per component) ──► se
 4. **Pin refresh** — scan the cloned `base/`; components whose `upstream` matches a manifest pin get
    `current`/`chart_version` updated. Unmatched components keep stored values. With
    `RADAR_AUTO_DETECT=true`, scanned entries whose upstream isn't tracked yet are **appended** as
-   new components (deduped by upstream, so multi-namespace curations like "curl" aren't re-added);
-   they go through the same fetch/drift/store path immediately.
+   new components (deduped by upstream — case-insensitively — so multi-namespace curations like
+   "curl" aren't re-added, and case-only name variants like scanned "valkey" vs curated "Valkey" are
+   skipped as already tracked); they go through the same fetch/drift/store path immediately.
 5. **Fetch** — per component, dispatch on `source`, paced at 250 ms per upstream for rate limiting.
    `helm_chart` with `track_app_version` rewrites `current` to the pinned chart's `appVersion` (and
    appends a note when the pin is missing upstream).

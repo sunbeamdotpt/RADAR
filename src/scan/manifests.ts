@@ -331,42 +331,58 @@ export function refreshPinsFromScan(
 /**
  * Auto-detection: append scanned entries whose upstream is not tracked yet.
  * Dedupe is upstream-only (not namespaced) so a component curated once for
- * several namespaces (e.g. "curl") is not re-added per namespace.
+ * several namespaces (e.g. "curl") is not re-added per namespace. All
+ * comparisons — upstream, name, and the ignore list — are case-insensitive
+ * ("Valkey" curated, "valkey" scanned is the same component).
  *
- * `ignore` (from the seed) suppresses entries by exact upstream or name —
- * the user's curated noise filter, e.g. short-name images whose real registry
+ * `ignore` (from the seed) suppresses entries by upstream or name — the
+ * user's curated noise filter, e.g. short-name images whose real registry
  * only exists in overlay `images:` sections.
  *
- * Names must be unique within a report (postgres PK is (run_id, name)). On a
- * name collision the auto-added entry is disambiguated as "name (namespace)";
- * if that is taken too, the entry is skipped and reported in `skipped`.
+ * Names must be unique within a report (postgres PK is (run_id, name)). A
+ * scanned entry whose name matches a tracked component only by case (e.g.
+ * "valkey" vs "Valkey") is treated as already tracked and skipped — the
+ * curated entry wins. On an exact-case name collision with a *different*
+ * upstream the auto-added entry is disambiguated as "name (namespace)"; if
+ * that is taken too, the entry is skipped and reported in `skipped`.
  */
 export function addAutoDetectedComponents(
   components: Component[],
   scanned: ScannedComponent[],
   ignore: ReadonlySet<string> = new Set(),
 ): { added: number; skipped: string[]; ignored: number } {
-  const upstreams = new Set(components.map((c) => c.upstream));
-  const names = new Set(components.map((c) => c.name));
+  const upstreams = new Set(components.map((c) => c.upstream.toLowerCase()));
+  const names = new Set(components.map((c) => c.name.toLowerCase()));
+  const exactNames = new Set(components.map((c) => c.name));
+  const ignoreLower = new Set([...ignore].map((entry) => entry.toLowerCase()));
   const skipped: string[] = [];
   let added = 0;
   let ignored = 0;
   for (const s of scanned) {
-    if (upstreams.has(s.upstream)) continue;
-    if (ignore.has(s.upstream) || ignore.has(s.name)) {
+    if (upstreams.has(s.upstream.toLowerCase())) continue;
+    if (ignoreLower.has(s.upstream.toLowerCase()) || ignoreLower.has(s.name.toLowerCase())) {
       ignored++;
       continue;
     }
-    upstreams.add(s.upstream);
+    upstreams.add(s.upstream.toLowerCase());
     let name = s.name;
-    if (names.has(name)) {
+    if (names.has(name.toLowerCase())) {
+      if (!exactNames.has(name)) {
+        skipped.push(
+          `${s.upstream} (already tracked as "${
+            [...exactNames].find((n) => n.toLowerCase() === name.toLowerCase())
+          }")`,
+        );
+        continue;
+      }
       name = `${s.name} (${s.namespace})`;
-      if (names.has(name)) {
+      if (names.has(name.toLowerCase())) {
         skipped.push(`${s.upstream} (name collision: ${s.name}, namespace ${s.namespace})`);
         continue;
       }
     }
-    names.add(name);
+    names.add(name.toLowerCase());
+    exactNames.add(name);
     components.push({
       name,
       namespace: s.namespace,
