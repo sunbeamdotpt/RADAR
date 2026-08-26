@@ -43,7 +43,7 @@ scripts/dev-dryrun.sh  # dry-run pass (render likely-safe updates, kubectl apply
 curl -s http://127.0.0.1:8080/api/v1/inventory | head
 curl -s http://127.0.0.1:8080/api/v1/assessments | head
 curl -s http://127.0.0.1:8080/api/v1/dryruns | head
-open http://127.0.0.1:8080            # human-readable dashboard (when enabled)
+open http://127.0.0.1:8080            # human-readable dashboard with sortable headers (when enabled)
 scripts/dev-down.sh    # tear down (--volumes to also drop data)
 ```
 

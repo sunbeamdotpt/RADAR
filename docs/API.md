@@ -18,6 +18,10 @@ at the root path. It renders each tracked component, its current and latest vers
 assessment, dry-run status, and an emoji status indicator, styled with the Beam dark theme. The page
 fetches `/api/v1/components`, `/api/v1/assessments`, and `/api/v1/dryruns` client-side.
 
+All table headers are clickable to sort the rows. The default sort is assessment severity
+(most-urgent first), then component name; subsequent clicks toggle ascending/descending order and
+show a small ▲/▼ indicator on the active column.
+
 When the dashboard is disabled, `GET /` returns `404 {"error":"not found"}` like any unknown path.
 
 ## Probes

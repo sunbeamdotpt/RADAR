@@ -40,6 +40,7 @@ scripts/dev-up.sh        # postgres:18-alpine + API on 127.0.0.1:8080
 scripts/dev-job.sh       # one-shot job container (clone + fetch + save)
 scripts/dev-assess.sh    # one-shot assess container (needs an inventory run first)
 scripts/dev-dryrun.sh    # one-shot dry-run container (needs inventory + assess first)
+open http://127.0.0.1:8080  # dashboard (after job/assess/dry-run runs; sortable headers)
 scripts/dev-down.sh      # stop; add --volumes to drop data
 ```
 

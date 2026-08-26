@@ -21,9 +21,10 @@ previous ──┼─► run if any)   GIT_BASE_URL)   fetchers)                
                                                                 └───────────────────────┘
                                                                            ▲
           ┌──────────────────────── REST API (read-only) ──────────────────┘
-          │  GET /api/v1/inventory · /api/v1/components[/{name}] · /health · probes
+          │  GET / (dashboard) · /api/v1/inventory · /api/v1/components[/{name}]
           │  GET /api/v1/assessments[?risk_level=…] · /api/v1/assessments/{name}
           │  GET /api/v1/dryruns[?status=…] · /api/v1/dryruns/{name}
+          │  /health · /__lbheartbeat__ · /__heartbeat__
           └───────────────────────────────────────────────────────────────────
 
           ┌───────────────────────── assess job (one-shot, step 2) ──────────────────────────┐
