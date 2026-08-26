@@ -2,6 +2,8 @@ import { parseGeneratedAtUtc } from "../domain/time.ts";
 import { RISK_LEVELS } from "../schema/assessment.ts";
 import { DRYRUN_STATUSES } from "../schema/dryrun.ts";
 import type { AssessmentStore, DryRunStore, Store } from "../store/store.ts";
+import type { ServerConfig } from "./config.ts";
+import { renderDashboard } from "./dashboard.ts";
 import {
   createCounter,
   createGauge,
@@ -159,6 +161,7 @@ async function refreshBusinessMetrics(
  */
 export function createHandler(
   store: Store & AssessmentStore & DryRunStore,
+  config: ServerConfig,
 ): (req: Request) => Promise<Response> {
   const inner = async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
@@ -170,6 +173,10 @@ export function createHandler(
 
     if (req.method !== "GET") {
       return json({ error: "method not allowed" }, 405);
+    }
+
+    if (path === "/" && config.dashboardEnabled) {
+      return renderDashboard();
     }
 
     if (path === "/__heartbeat__") {
@@ -250,6 +257,7 @@ export function createHandler(
       }
       if (path === "/api/v1/dryruns") {
         const status = url.searchParams.get("status");
+        const namespace = url.searchParams.get("namespace");
         if (status !== null) {
           if (!(DRYRUN_STATUSES as readonly string[]).includes(status)) {
             return json({
@@ -260,6 +268,13 @@ export function createHandler(
             ...report,
             dry_runs: report.dry_runs.filter((d) => d.status === status),
           });
+        }
+        if (namespace !== null) {
+          const filtered = report.dry_runs.filter((d) => d.namespace === namespace);
+          if (filtered.length === 0) {
+            return json({ error: `dry-run not found: ${namespace}` }, 404);
+          }
+          return json({ ...report, dry_runs: filtered });
         }
         return json(report);
       }

@@ -43,6 +43,7 @@ scripts/dev-dryrun.sh  # dry-run pass (render likely-safe updates, kubectl apply
 curl -s http://127.0.0.1:8080/api/v1/inventory | head
 curl -s http://127.0.0.1:8080/api/v1/assessments | head
 curl -s http://127.0.0.1:8080/api/v1/dryruns | head
+open http://127.0.0.1:8080            # human-readable dashboard (when enabled)
 scripts/dev-down.sh    # tear down (--volumes to also drop data)
 ```
 
@@ -79,6 +80,7 @@ the data model and [docs/API.md](docs/API.md) for endpoints.
 | `RADAR_FETCH_TIMEOUT_MS`    | `20000`                                      | Per-fetch timeout; retries count as fresh attempts                              |
 | `RADAR_FETCH_RETRIES`       | `1`                                          | Number of retries for timeout/5xx/transport errors (4xx is not retried)         |
 | `RADAR_HOST` / `PORT`       | `0.0.0.0` / `8080`                           | API bind address                                                                |
+| `RADAR_DASHBOARD_ENABLED`   | `true`                                       | Serve the HTML landing dashboard at `/`                                         |
 | `RADAR_ASSESS_UPDATES_ONLY` | `false`                                      | Assess only components with `update_available`                                  |
 | `RADAR_ASSESS_JSON_PATH`    | `./data/component-versions.assessments.json` | Dev JSON assessment store; also a mirror when `STORAGE=postgres`                |
 | `RADAR_DRYRUN_KUBECONFIG`   | —                                            | Absolute path to a kubeconfig for dev dry-runs (read-only mount)                |

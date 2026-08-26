@@ -23,7 +23,7 @@ async function main(): Promise<void> {
 
   const server = Deno.serve(
     { hostname: config.hostname, port: config.port, signal: abort.signal },
-    createHandler(store),
+    createHandler(store, config),
   );
   await server.finished;
   await store.close();

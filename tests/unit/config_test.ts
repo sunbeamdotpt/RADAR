@@ -93,16 +93,19 @@ Deno.test("loadServerConfig defaults and overrides", () => {
     databaseUrl: undefined,
     hostname: "0.0.0.0",
     port: 8080,
+    dashboardEnabled: true,
   });
   const config = loadServerConfig({
     STORAGE: "postgres",
     DATABASE_URL: "postgresql://u:p@h/d",
     PORT: "9090",
     RADAR_HOST: "127.0.0.1",
+    RADAR_DASHBOARD_ENABLED: "false",
   });
   assertEquals(config.port, 9090);
   assertEquals(config.hostname, "127.0.0.1");
   assertEquals(config.databaseUrl, "postgresql://u:p@h/d");
+  assertEquals(config.dashboardEnabled, false);
 });
 
 Deno.test("loadDryRunConfig applies documented defaults", () => {

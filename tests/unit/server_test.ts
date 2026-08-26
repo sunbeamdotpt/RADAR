@@ -1,9 +1,21 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
+import type { ServerConfig } from "../../src/server/config.ts";
 import { createHandler, resetRouteMetrics } from "../../src/server/routes.ts";
 import type { AssessmentReport } from "../../src/schema/assessment.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
 import type { DryRunReport } from "../../src/schema/dryrun.ts";
 import type { AssessmentStore, DryRunStore, Store } from "../../src/store/store.ts";
+
+const DEFAULT_CONFIG: ServerConfig = {
+  storage: "json",
+  jsonPath: "./data/component-versions.json",
+  databaseUrl: undefined,
+  hostname: "0.0.0.0",
+  port: 8080,
+  dashboardEnabled: true,
+};
+
+const DISABLED_DASHBOARD_CONFIG: ServerConfig = { ...DEFAULT_CONFIG, dashboardEnabled: false };
 
 class StubStore implements Store, AssessmentStore, DryRunStore {
   healthy = true;
@@ -71,7 +83,7 @@ function get(handler: (req: Request) => Promise<Response>, path: string, method 
 }
 
 Deno.test("liveness probe always answers ok", async () => {
-  const handler = createHandler(new StubStore(null));
+  const handler = createHandler(new StubStore(null), DEFAULT_CONFIG);
   const res = await get(handler, "/__lbheartbeat__");
   assertEquals(res.status, 200);
   assertEquals(await res.text(), "ok");
@@ -79,7 +91,7 @@ Deno.test("liveness probe always answers ok", async () => {
 
 Deno.test("readiness probe reflects store health", async () => {
   const store = new StubStore(null);
-  const handler = createHandler(store);
+  const handler = createHandler(store, DEFAULT_CONFIG);
   assertEquals((await get(handler, "/__heartbeat__")).status, 200);
   store.healthy = false;
   const res = await get(handler, "/__heartbeat__");
@@ -88,14 +100,14 @@ Deno.test("readiness probe reflects store health", async () => {
 });
 
 Deno.test("/health returns JSON status", async () => {
-  const handler = createHandler(new StubStore(null));
+  const handler = createHandler(new StubStore(null), DEFAULT_CONFIG);
   const res = await get(handler, "/health");
   assertEquals(res.status, 200);
   assertEquals((await res.json()).status, "ok");
 });
 
 Deno.test("inventory endpoints 404 before the first run", async () => {
-  const handler = createHandler(new StubStore(null));
+  const handler = createHandler(new StubStore(null), DEFAULT_CONFIG);
   for (const path of ["/api/v1/inventory", "/api/v1/components", "/api/v1/components/CFSSL"]) {
     const res = await get(handler, path);
     assertEquals(res.status, 404, path);
@@ -104,7 +116,7 @@ Deno.test("inventory endpoints 404 before the first run", async () => {
 });
 
 Deno.test("inventory and components are served from the latest report", async () => {
-  const handler = createHandler(new StubStore(REPORT));
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
   const inventory = await (await get(handler, "/api/v1/inventory")).json();
   assertEquals(inventory.generated_at, "2026-08-21 12:00:00 UTC");
   assertEquals(inventory.components.length, 2);
@@ -117,7 +129,7 @@ Deno.test("inventory and components are served from the latest report", async ()
 });
 
 Deno.test("component lookup by name, including spaces", async () => {
-  const handler = createHandler(new StubStore(REPORT));
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
   const res = await get(
     handler,
     `/api/v1/components/${encodeURIComponent("Scaleway cert-manager webhook")}`,
@@ -132,7 +144,7 @@ Deno.test("component lookup by name, including spaces", async () => {
 });
 
 Deno.test("unknown paths and non-GET methods are rejected", async () => {
-  const handler = createHandler(new StubStore(REPORT));
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
   assertEquals((await get(handler, "/nope")).status, 404);
   assertEquals((await get(handler, "/api/v1/inventory", "POST")).status, 405);
 });
@@ -175,7 +187,7 @@ const ASSESSMENTS: AssessmentReport = {
 };
 
 Deno.test("assessment endpoints 404 before the first assess run", async () => {
-  const handler = createHandler(new StubStore(REPORT));
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
   for (const path of ["/api/v1/assessments", "/api/v1/assessments/Kratos"]) {
     const res = await get(handler, path);
     assertEquals(res.status, 404, path);
@@ -212,7 +224,7 @@ const DRY_RUNS: DryRunReport = {
 Deno.test("assessments are served, filterable, and addressable by name", async () => {
   const store = new StubStore(REPORT);
   store.assessments = ASSESSMENTS;
-  const handler = createHandler(store);
+  const handler = createHandler(store, DEFAULT_CONFIG);
 
   const all = await (await get(handler, "/api/v1/assessments")).json();
   assertEquals(all.assessments.length, 3);
@@ -235,7 +247,7 @@ Deno.test("assessments are served, filterable, and addressable by name", async (
 });
 
 Deno.test("dry-run endpoints 404 before the first dry-run job", async () => {
-  const handler = createHandler(new StubStore(REPORT));
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
   for (const path of ["/api/v1/dryruns", "/api/v1/dryruns/longhorn-system"]) {
     const res = await get(handler, path);
     assertEquals(res.status, 404, path);
@@ -246,7 +258,7 @@ Deno.test("dry-run endpoints 404 before the first dry-run job", async () => {
 Deno.test("dry-runs are served, filterable, and addressable by namespace", async () => {
   const store = new StubStore(REPORT);
   store.dryRuns = DRY_RUNS;
-  const handler = createHandler(store);
+  const handler = createHandler(store, DEFAULT_CONFIG);
 
   const all = await (await get(handler, "/api/v1/dryruns")).json();
   assertEquals(all.dry_runs.length, 2);
@@ -257,6 +269,13 @@ Deno.test("dry-runs are served, filterable, and addressable by namespace", async
   assertEquals(successes.dry_runs.map((d: { namespace: string }) => d.namespace), [
     "longhorn-system",
   ]);
+
+  const byNamespace = await (await get(handler, "/api/v1/dryruns?namespace=cert-manager")).json();
+  assertEquals(byNamespace.dry_runs.length, 1);
+  assertEquals(byNamespace.dry_runs[0].status, "dryrun_failed");
+
+  const missingNamespace = await get(handler, "/api/v1/dryruns?namespace=Nope");
+  assertEquals(missingNamespace.status, 404);
 
   const bad = await get(handler, "/api/v1/dryruns?status=spicy");
   assertEquals(bad.status, 400);
@@ -273,7 +292,7 @@ Deno.test("/metrics exposes Prometheus text with business metrics", async () => 
   const store = new StubStore(REPORT);
   store.assessments = ASSESSMENTS;
   store.dryRuns = DRY_RUNS;
-  const handler = createHandler(store);
+  const handler = createHandler(store, DEFAULT_CONFIG);
 
   const res = await get(handler, "/metrics");
   assertEquals(res.status, 200);
@@ -290,7 +309,7 @@ Deno.test("/metrics exposes Prometheus text with business metrics", async () => 
 
 Deno.test("HTTP requests are counted and timed", async () => {
   resetRouteMetrics();
-  const handler = createHandler(new StubStore(null));
+  const handler = createHandler(new StubStore(null), DEFAULT_CONFIG);
   await get(handler, "/__lbheartbeat__");
   await get(handler, "/api/v1/inventory");
 
@@ -304,4 +323,25 @@ Deno.test("HTTP requests are counted and timed", async () => {
     body,
     'radar_http_requests_total{method="GET",route="/api/v1/inventory",status="404"} 1',
   );
+});
+
+Deno.test("dashboard is served at / when enabled", async () => {
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
+  const res = await get(handler, "/");
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
+  const body = await res.text();
+  assertStringIncludes(body, "Sunbeam RADAR");
+  assertStringIncludes(body, "/api/v1/components");
+  assertStringIncludes(body, "/api/v1/assessments");
+  assertStringIncludes(body, "/api/v1/dryruns");
+  assertStringIncludes(body, "show output");
+  assertStringIncludes(body, "/api/v1/dryruns?namespace=");
+});
+
+Deno.test("dashboard is hidden at / when disabled", async () => {
+  const handler = createHandler(new StubStore(REPORT), DISABLED_DASHBOARD_CONFIG);
+  const res = await get(handler, "/");
+  assertEquals(res.status, 404);
+  assertEquals((await res.json()).error, "not found");
 });

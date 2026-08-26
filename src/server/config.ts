@@ -1,5 +1,6 @@
 import {
   type Env,
+  envBool,
   envStorage,
   envString,
   resolveDatabaseUrl,
@@ -13,6 +14,7 @@ export interface ServerConfig {
   databaseUrl: string | undefined;
   hostname: string;
   port: number;
+  dashboardEnabled: boolean;
 }
 
 export function loadServerConfig(env: Env): ServerConfig {
@@ -28,5 +30,6 @@ export function loadServerConfig(env: Env): ServerConfig {
     databaseUrl: storage === "postgres" ? resolveDatabaseUrl(env) : undefined,
     hostname: envString(env, "RADAR_HOST", "0.0.0.0"),
     port,
+    dashboardEnabled: envBool(env, "RADAR_DASHBOARD_ENABLED", true),
   };
 }

@@ -9,6 +9,17 @@ Read-only JSON over the latest stored inventory report and assessment report. Ba
 `http://127.0.0.1:8080`. No authentication (cluster-internal service; expose via Sunbeam Proxy if
 needed — see docs/KUBERNETES.md).
 
+## Dashboard
+
+### `GET /`
+
+When `RADAR_DASHBOARD_ENABLED` is `true` (the default), the API serves a human-readable landing page
+at the root path. It renders each tracked component, its current and latest versions, risk
+assessment, dry-run status, and an emoji status indicator, styled with the Beam dark theme. The page
+fetches `/api/v1/components`, `/api/v1/assessments`, and `/api/v1/dryruns` client-side.
+
+When the dashboard is disabled, `GET /` returns `404 {"error":"not found"}` like any unknown path.
+
 ## Probes
 
 | Endpoint               | Purpose                               | Success                 | Failure                    |
@@ -112,7 +123,8 @@ latest assessed inventory run; these endpoints serve it.
 
 ### `GET /api/v1/dryruns`
 
-The full latest dry-run report. Optional `?status=` narrows `dry_runs` to one status.
+The full latest dry-run report. Optional `?status=` narrows `dry_runs` to one status, and optional
+`?namespace=` returns only the dry-run for that namespace (`404` when not found).
 
 ```json
 {

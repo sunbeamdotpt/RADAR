@@ -1,11 +1,21 @@
 import { assertEquals } from "jsr:@std/assert@^1";
 import { PostgresStore } from "../../src/store/postgres_store.ts";
+import type { ServerConfig } from "../../src/server/config.ts";
 import { createHandler } from "../../src/server/routes.ts";
 import { runInventory } from "../../src/job/inventory.ts";
 import { OfflineHttpClient } from "../../src/sources/http.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
 
 const META = { domainSuffix: "sunbeam.pt", gitBaseUrl: "https://example.test/repo.git" };
+
+const DEFAULT_CONFIG: ServerConfig = {
+  storage: "json",
+  jsonPath: "./data/component-versions.json",
+  databaseUrl: undefined,
+  hostname: "0.0.0.0",
+  port: 8080,
+  dashboardEnabled: true,
+};
 
 async function dockerAvailable(): Promise<boolean> {
   try {
@@ -129,7 +139,7 @@ Deno.test({
         assertEquals(latest?.components.length, 2);
 
         // The API serves exactly what the store persisted.
-        const handler = createHandler(store);
+        const handler = createHandler(store, DEFAULT_CONFIG);
         const res = await handler(new Request("http://localhost/api/v1/inventory"));
         assertEquals(res.status, 200);
         const body = await res.json();

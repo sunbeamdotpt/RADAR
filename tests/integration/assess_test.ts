@@ -3,11 +3,21 @@ import { join } from "jsr:@std/path@^1";
 import { runAssessment } from "../../src/assess/run.ts";
 import { PostgresStore } from "../../src/store/postgres_store.ts";
 import { JsonStore } from "../../src/store/json_store.ts";
+import type { ServerConfig } from "../../src/server/config.ts";
 import { createHandler } from "../../src/server/routes.ts";
 import { OfflineHttpClient } from "../../src/sources/http.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
 
 const META = { domainSuffix: "sunbeam.pt", gitBaseUrl: "https://example.test/repo.git" };
+
+const DEFAULT_CONFIG: ServerConfig = {
+  storage: "json",
+  jsonPath: "./data/component-versions.json",
+  databaseUrl: undefined,
+  hostname: "0.0.0.0",
+  port: 8080,
+  dashboardEnabled: true,
+};
 
 async function dockerAvailable(): Promise<boolean> {
   try {
@@ -142,7 +152,7 @@ Deno.test({
           assertEquals(reloaded?.assessments.length, 2);
 
           // API serves the same data.
-          const handler = createHandler(store);
+          const handler = createHandler(store, DEFAULT_CONFIG);
           const res = await handler(new Request("http://localhost/api/v1/assessments"));
           assertEquals(res.status, 200);
           const body = await res.json();
