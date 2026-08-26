@@ -138,7 +138,10 @@ winning layer is recorded in each assessment's `layer` field):
    safety signals.
 8. **Channel hint** — `channel: experimental` → `breaking`; runs late so curated context outranks
    the gap heuristic.
-9. **L5 gap fallback** — same-major minor gap ≤2 → `likely_safe`, >10 → `review`; else `unknown`.
+9. **L5 gap fallback** — same-major minor gap ≤2 → `likely_safe`, >10 → `review`; else `unknown`. A
+   drifted component whose release notes were fetchable but came back empty is `unknown`, never
+   `likely_safe` — silence is not safety. Note URLs are tried as resolved and with the tag's `v`
+   prefix toggled, since seed templates can't know a repo's tagging convention.
 
 ## Coverage gate
 

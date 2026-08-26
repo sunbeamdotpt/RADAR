@@ -13,7 +13,7 @@ import { diffCRDManifests, diffGoMod, diffHelmValuesSchema } from "./structured.
 import { analyzeReleaseNoteStructure } from "./notes.ts";
 import { analyzeCommits } from "./commits.ts";
 import { scoreKeywords } from "./keywords.ts";
-import { fetchReleaseNotes } from "./fetch.ts";
+import { fetchReleaseNotes, releaseNotesFetchable } from "./fetch.ts";
 
 /**
  * The layered assessment engine. Layers run highest-confidence first; the
@@ -27,7 +27,8 @@ import { fetchReleaseNotes } from "./fetch.ts";
  *   L3  commit analysis, when commits are injected
  *   L4  weighted keywords
  *   L6  channel hint (experimental) — curated context outranks gap heuristics
- *   L5  version-gap fallback
+ *   L5  version-gap fallback (a drifted component whose notes were fetchable
+ *       but came back empty is unknown — silence is not safety)
  *   —   unknown
  */
 
@@ -143,10 +144,15 @@ export async function assessComponent(
   }
 
   // Release notes: injected or fetched (soft-fail — no notes is normal).
+  // notesUnavailable tracks "we expected notes and got none" so the gap
+  // fallback doesn't read silence as safety.
   let releaseNotes = opts.releaseNotes ?? "";
+  const notesExpected = !opts.offline && opts.releaseNotes === undefined &&
+    releaseNotesFetchable(comp);
   if (!releaseNotes && !opts.offline) {
     releaseNotes = await fetchReleaseNotes(comp, http, token);
   }
+  const notesUnavailable = notesExpected && !releaseNotes;
   const combinedNotes = `${releaseNotes}\n${comp.notes}`;
 
   // Layer 2: release-note structure.
@@ -258,6 +264,18 @@ export async function assessComponent(
       );
     }
     if (gap <= 2) {
+      if (gap > 0 && notesUnavailable) {
+        return makeAssessment(
+          name,
+          current,
+          latest,
+          "unknown",
+          `Same major, small gap (${gap}), but release notes could not be fetched — cannot confirm safety`,
+          "Fetch release notes manually",
+          "layer_5_gap_fallback",
+          { minor_gap: gap, notes_unavailable: true },
+        );
+      }
       return makeAssessment(
         name,
         current,

@@ -305,3 +305,92 @@ Deno.test("fetchReleaseNotes falls back to plain text and soft-fails", async () 
   const docker = comp({ source: "docker_hub", link_template: "https://hub.docker.com/r/o/r/tags" });
   assertEquals(await fetchReleaseNotes(docker, broken), "", "registries without notes are skipped");
 });
+
+Deno.test("toggleTagV flips the v prefix on github release tag URLs", async () => {
+  const { toggleTagV } = await import("../../src/assess/fetch.ts");
+  assertEquals(
+    toggleTagV("https://github.com/longhorn/longhorn/releases/tag/1.12.1"),
+    "https://github.com/longhorn/longhorn/releases/tag/v1.12.1",
+  );
+  assertEquals(
+    toggleTagV("https://github.com/o/r/releases/tag/v1.0.0"),
+    "https://github.com/o/r/releases/tag/1.0.0",
+  );
+  assertEquals(toggleTagV("https://example.com/changelog"), null);
+});
+
+Deno.test("fetchReleaseNotes retries the v-toggled tag when the resolved URL 404s", async () => {
+  const calls: string[] = [];
+  const http: HttpClient = {
+    json: (url: string) => {
+      calls.push(url);
+      if (url.endsWith("/releases/tags/v1.12.1")) {
+        return Promise.resolve({ body: "## Breaking Changes\n- x" });
+      }
+      return Promise.reject(new Error("404"));
+    },
+    text: () => Promise.reject(new Error("404")),
+  };
+  // Longhorn: seed template uses {app_version} (v stripped) but tags are v-prefixed.
+  const c = comp({
+    name: "Longhorn",
+    current: "v1.11.1",
+    latest: "v1.12.1",
+    source: "helm_chart",
+    link_template: "https://github.com/longhorn/longhorn/releases/tag/{app_version}",
+  });
+  const notes = await fetchReleaseNotes(c, http);
+  assertEquals(notes, "## Breaking Changes\n- x");
+  assertEquals(calls, [
+    "https://api.github.com/repos/longhorn/longhorn/releases/tags/1.12.1",
+    "https://api.github.com/repos/longhorn/longhorn/releases/tags/v1.12.1",
+  ]);
+});
+
+Deno.test("drifted small-gap with fetchable-but-empty notes is unknown, not likely_safe", async () => {
+  const silent: HttpClient = {
+    json: () => Promise.reject(new Error("404")),
+    text: () => Promise.reject(new Error("404")),
+  };
+  const a = await assessComponent(
+    comp({
+      name: "Longhorn",
+      current: "v1.11.1",
+      latest: "v1.12.1",
+      source: "helm_chart",
+      link_template: "https://github.com/longhorn/longhorn/releases/tag/{app_version}",
+    }),
+    {},
+    silent,
+    undefined,
+    { now: NOW },
+  );
+  assertEquals(a.risk_level, "unknown");
+  assertEquals(a.layer, "layer_5_gap_fallback");
+  assertEquals(a.details.notes_unavailable, true);
+
+  // No drift → still likely_safe; nothing to be unsafe about.
+  const inSync = await assessComponent(
+    comp({ latest: "1.0.0", update_available: false }),
+    {},
+    silent,
+    undefined,
+    { now: NOW },
+  );
+  assertEquals(inSync.risk_level, "likely_safe");
+
+  // Sources with no text notes by design (docker hub) keep the old behavior.
+  const docker = await assessComponent(
+    comp({
+      name: "NATS server",
+      source: "docker_hub",
+      upstream: "nats",
+      link_template: "",
+    }),
+    {},
+    silent,
+    undefined,
+    { now: NOW },
+  );
+  assertEquals(docker.risk_level, "likely_safe");
+});

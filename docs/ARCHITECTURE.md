@@ -119,7 +119,9 @@ recorded in the assessment's `layer` field:
 - **Channel hint** — `channel: experimental` (explicit, or inferred from curated notes) →
   `breaking`. Runs late: curated context outranks the generic gap heuristic.
 - **L5 gap fallback** — same-major minor gap: ≤2 → `likely_safe`, >10 → `review`; anything else with
-  no signal → `unknown`.
+  no signal → `unknown`. If the component drifted and its release notes were fetchable but empty,
+  the verdict is `unknown` (silence is not safety). Note fetches try the resolved URL and the
+  `v`-toggled tag variant (`v1.2.3` ↔ `1.2.3`) because tagging conventions differ per repo.
 
 ## Storage model (postgres)
 

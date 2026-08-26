@@ -36,6 +36,24 @@ export function githubApiUrl(url: string): string | null {
 
 const NO_NOTES_HOSTS = /hub\.docker\.com|ghcr\.io|quay\.io|oci\.|src\.|registry\./i;
 
+/**
+ * Toggle a leading "v" on the tag segment of a github release URL
+ * (`…/releases/tag/1.2.3` ↔ `…/releases/tag/v1.2.3`). Seed templates can't
+ * know a repo's tagging convention, and a wrong guess 404s silently.
+ */
+export function toggleTagV(url: string): string | null {
+  const m = url.match(/^(.*\/releases\/tags?\/)([^/]+)$/);
+  if (!m) return null;
+  const [, prefix, tag] = m;
+  return prefix + (tag.startsWith("v") ? tag.slice(1) : `v${tag}`);
+}
+
+/** True when a component has a resolvable, text-bearing link to fetch notes from. */
+export function releaseNotesFetchable(comp: ComponentRecord): boolean {
+  const url = resolveUrl(comp.link_template, comp);
+  return url !== null && !NO_NOTES_HOSTS.test(url);
+}
+
 export async function fetchReleaseNotes(
   comp: ComponentRecord,
   http: HttpClient,
@@ -45,21 +63,31 @@ export async function fetchReleaseNotes(
   if (!url) return "";
   if (NO_NOTES_HOSTS.test(url)) return "";
 
-  const apiUrl = githubApiUrl(url);
-  if (apiUrl) {
-    try {
-      const data = await http.json(apiUrl, token);
-      if (typeof data === "object" && data !== null) {
-        const body = (data as Record<string, unknown>).body;
-        if (typeof body === "string" && body) return body;
+  // Try the resolved URL first, then the v-toggled tag variant (repos differ
+  // on whether release tags carry the "v" prefix; a wrong guess 404s).
+  const candidates = [url];
+  const toggled = toggleTagV(url);
+  if (toggled) candidates.push(toggled);
+
+  for (const candidate of candidates) {
+    const apiUrl = githubApiUrl(candidate);
+    if (apiUrl) {
+      try {
+        const data = await http.json(apiUrl, token);
+        if (typeof data === "object" && data !== null) {
+          const body = (data as Record<string, unknown>).body;
+          if (typeof body === "string" && body) return body;
+        }
+      } catch {
+        // fall through to the plain URL for this candidate
       }
+    }
+    try {
+      const text = await http.text(candidate);
+      if (text) return text;
     } catch {
-      // fall through to the plain URL
+      // try the next candidate
     }
   }
-  try {
-    return await http.text(url);
-  } catch {
-    return "";
-  }
+  return "";
 }
