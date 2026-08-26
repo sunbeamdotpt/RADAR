@@ -8,6 +8,12 @@ import {
   serializeReport,
   toRecord,
 } from "../../src/schema/component.ts";
+import {
+  DryRunSchemaError,
+  parseDryRun,
+  parseDryRunReport,
+  parseDryRunStatus,
+} from "../../src/schema/dryrun.ts";
 import { DEFAULT_DOMAIN_SUFFIX, normalizeDomainSuffix } from "../../src/domain/domain_suffix.ts";
 import { formatGeneratedAtUtc } from "../../src/domain/time.ts";
 
@@ -218,4 +224,94 @@ Deno.test("normalizeDomainSuffix replaces all occurrences", () => {
 Deno.test("formatGeneratedAtUtc matches strftime '%Y-%m-%d %H:%M:%S UTC'", () => {
   const d = new Date(Date.UTC(2026, 7, 21, 9, 5, 3));
   assertEquals(formatGeneratedAtUtc(d), "2026-08-21 09:05:03 UTC");
+});
+
+Deno.test("parseDryRun validates dry-run records", () => {
+  const valid = {
+    name: "Longhorn",
+    current: "v1.11.1",
+    latest: "v1.12.0",
+    namespace: "longhorn-system",
+    kustomize_path: "/tmp/base/longhorn",
+    status: "success",
+    stdout: "service/longhorn created (dry-run)",
+    stderr: "",
+    duration_ms: 1234,
+    mutated_helm_version: "v1.12.0",
+    details: { build_exit_code: 0 },
+  };
+  const parsed = parseDryRun(valid, 0);
+  assertEquals(parsed.name, "Longhorn");
+  assertEquals(parsed.status, "success");
+  assertEquals(parsed.mutated_helm_version, "v1.12.0");
+
+  assertThrows(() => parseDryRun({ ...valid, status: "boom" }, 0), DryRunSchemaError, "status");
+  assertThrows(
+    () => parseDryRun({ ...valid, bogus: 1 }, 0),
+    DryRunSchemaError,
+    'unknown key "bogus"',
+  );
+  assertThrows(
+    () => parseDryRun({ ...valid, duration_ms: "lots" }, 0),
+    DryRunSchemaError,
+    "number",
+  );
+  const { details: _omit, ...noDetails } = valid;
+  assertEquals(parseDryRun(noDetails, 0).details, {});
+});
+
+Deno.test("parseDryRunReport validates the envelope", () => {
+  const valid = {
+    generated_at: "2026-08-21 12:00:00 UTC",
+    inventory_generated_at: "2026-08-21 11:00:00 UTC",
+    assessment_generated_at: "2026-08-21 11:30:00 UTC",
+    dry_runs: [{
+      name: "Longhorn",
+      current: "v1.11.1",
+      latest: "v1.12.0",
+      namespace: "longhorn-system",
+      kustomize_path: "/tmp/base/longhorn",
+      status: "success",
+      stdout: "",
+      stderr: "",
+      duration_ms: 0,
+      details: {},
+    }],
+  };
+  assertEquals(parseDryRunReport(valid).dry_runs.length, 1);
+  assertThrows(() => parseDryRunReport({}), DryRunSchemaError, "generated_at");
+  assertThrows(
+    () => parseDryRunReport({ generated_at: "x" }),
+    DryRunSchemaError,
+    "inventory_generated_at",
+  );
+  assertThrows(
+    () => parseDryRunReport({ generated_at: "x", inventory_generated_at: "y" }),
+    DryRunSchemaError,
+    "assessment_generated_at",
+  );
+  assertThrows(
+    () =>
+      parseDryRunReport({
+        generated_at: "x",
+        inventory_generated_at: "y",
+        assessment_generated_at: "z",
+      }),
+    DryRunSchemaError,
+    "dry_runs",
+  );
+});
+
+Deno.test("parseDryRunStatus accepts all documented statuses", () => {
+  for (
+    const status of [
+      "success",
+      "build_failed",
+      "dryrun_failed",
+      "skipped_no_mapping",
+      "skipped_unsupported_source",
+    ]
+  ) {
+    assertEquals(parseDryRunStatus(status, "test"), status);
+  }
 });

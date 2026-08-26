@@ -1,0 +1,35 @@
+# RBAC for the RADAR dry-run preview job.
+# The job only performs `kubectl apply --dry-run=server`; these permissions
+# support that operation against arbitrary manifests in the cluster.
+# In dev, the job is opt-in via RADAR_DRYRUN_KUBECONFIG and this RBAC is unused.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: radar-dryrun
+  namespace: radar
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: radar-dryrun
+rules:
+  # Server-side dry-run applies resources to the API server; "create" is required
+  # for the API server to validate and dry-run each object. "get" and "list"
+  # support kubectl's discovery and resource lookups.
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: radar-dryrun
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: radar-dryrun
+subjects:
+  - kind: ServiceAccount
+    name: radar-dryrun
+    namespace: radar

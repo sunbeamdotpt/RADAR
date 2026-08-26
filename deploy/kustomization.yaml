@@ -11,6 +11,8 @@ resources:
   - api-service.yaml
   - job-cronjob.yaml
   - assess-cronjob.yaml
+  - dryrun-rbac.yaml
+  - dryrun-cronjob.yaml
 
 # Short image names — the registry is wired here, matching sbbb conventions.
 images:
@@ -19,4 +21,7 @@ images:
     newTag: latest
   - name: sunbeam-radar-job
     newName: oci.DOMAIN_SUFFIX/studio/sunbeam-radar-job
+    newTag: latest
+  - name: sunbeam-radar-dryrun
+    newName: oci.DOMAIN_SUFFIX/studio/sunbeam-radar-dryrun
     newTag: latest

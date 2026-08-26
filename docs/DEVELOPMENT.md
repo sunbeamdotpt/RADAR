@@ -20,6 +20,7 @@ See docs/ARCHITECTURE.md for the module tour. Tests mirror `src/`:
 ```bash
 deno task job                     # run the inventory job (STORAGE=json default)
 deno task assess                  # run the assess job (step 2; needs an inventory run first)
+deno task dryrun                  # run the dry-run job (step 3; needs inventory + assess first)
 deno task serve                   # run the API on :8080
 deno task test                    # everything (unit + parity + integration)
 deno task test:unit               # fast loop
@@ -33,6 +34,7 @@ deno task check                   # fmt + lint + typecheck + tests + gate
 scripts/dev-up.sh        # postgres:18-alpine + API on 127.0.0.1:8080
 scripts/dev-job.sh       # one-shot job container (clone + fetch + save)
 scripts/dev-assess.sh    # one-shot assess container (needs an inventory run first)
+scripts/dev-dryrun.sh    # one-shot dry-run container (needs inventory + assess first)
 scripts/dev-down.sh      # stop; add --volumes to drop data
 ```
 
@@ -44,6 +46,8 @@ Useful env while developing:
 RADAR_OFFLINE=1 scripts/dev-job.sh      # skip upstream fetches (fallback behavior)
 GIT_BASE_URL=/path/to/local/sbbb scripts/dev-job.sh   # skip the GitHub clone
 GITHUB_TOKEN=… scripts/dev-job.sh       # avoid GitHub rate limits
+RADAR_DRYRUN_BUILD_ONLY=1 scripts/dev-dryrun.sh       # validate kustomize build without a cluster
+RADAR_DRYRUN_KUBECONFIG=~/.kube/config scripts/dev-dryrun.sh   # dry-run against a real cluster
 ```
 
 ## The compatibility test (`tests/parity/`)
@@ -89,6 +93,41 @@ scripts/dev-assess.sh               # against the dev stack (reuses the job imag
 RADAR_ASSESS_UPDATES_ONLY=1 scripts/dev-assess.sh   # assess only components with update_available
 RADAR_OFFLINE=1 scripts/dev-assess.sh               # no release-note fetches (soft-fail anyway)
 ```
+
+## Dry-runs (step 3)
+
+The dry-run job (`src/dryrun/`) runs after the assess job: it reads the latest inventory and
+assessment runs, finds drifted components judged `likely_safe`, renders their manifests with the
+`latest` chart version applied, and pipes them to `kubectl apply --dry-run=server`. Results are
+written to the `dry_runs` table in postgres, or `RADAR_DRYRUN_JSON_PATH` with `STORAGE=json`.
+
+```bash
+deno task dryrun                    # STORAGE=json → ./data/component-versions.dryruns.json
+scripts/dev-dryrun.sh               # against the dev stack
+RADAR_DRYRUN_BUILD_ONLY=1 scripts/dev-dryrun.sh     # skip kubectl, only validate kustomize build
+RADAR_DRYRUN_KUBECONFIG=~/.kube/config scripts/dev-dryrun.sh   # dry-run against a real cluster
+```
+
+Only `source: helm_chart` components are mutated today; other sources are recorded as
+`skipped_unsupported_source`. Components whose base directory can't be found are recorded as
+`skipped_no_mapping`; add an explicit `kustomize_path` hint to the seed to fix those.
+
+### `kustomize_path` hints
+
+Components can carry an optional `kustomize_path` in the seed YAML. It overrides the slug heuristic
+for components whose base directory doesn't match their name:
+
+```yaml
+- name: Gateway API CRDs
+  namespace: cluster
+  current: v1.5.1
+  source: github_release
+  upstream: kubernetes-sigs/gateway-api
+  kustomize_path: base/gateway-api
+```
+
+Like assessor hints, `kustomize_path` is parsed from the seed but never emitted in inventory report
+records.
 
 ### Seed hints
 

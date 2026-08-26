@@ -133,6 +133,8 @@ const SEED_KEYS = new Set([
   "chart_version",
   "track_app_version",
   "latest",
+  // Dry-run hint (curated, never emitted in report records)
+  "kustomize_path",
   // Assessor hints (curated, never emitted in report records)
   "channel",
   "versioning_scheme",

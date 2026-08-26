@@ -11,6 +11,7 @@ development, and Kubernetes details.
 ```bash
 deno task job               # run the inventory job (env-configured)
 deno task assess            # run the assess job (step 2; needs an inventory run first)
+deno task dryrun            # run the dry-run job (step 3; non-mutating preview)
 deno task serve             # run the REST API on :8080
 deno task test              # unit + parity + integration
 deno task coverage          # tests + ≥95% line-coverage gate
@@ -18,6 +19,7 @@ deno task check             # fmt + lint + typecheck + tests + gate (run before 
 scripts/dev-up.sh           # local docker stack: postgres + API on 127.0.0.1:8080
 scripts/dev-job.sh          # one-shot inventory run against the dev stack
 scripts/dev-assess.sh       # one-shot assess run against the dev stack
+scripts/dev-dryrun.sh       # one-shot dry-run preview against the dev stack
 scripts/dev-down.sh         # tear down (--volumes to drop data)
 ```
 
@@ -47,7 +49,11 @@ implementation offline). Both auto-skip/fail loudly per environment.
 - **No new dependencies** without a reason. Current deps: `jsr:@std/yaml`, `jsr:@db/postgres` (+
   `jsr:@std/assert`, `jsr:@std/path` for tests).
 - **Logs are JSON lines** via `src/log.ts`; the jobs exit 0/1/2 (ok/failure/bad config). The assess
-  job (`src/assess/`) follows the same job standards: exit codes 0/1/2, JSON logs, env-only config.
+  job (`src/assess/`) and dry-run job (`src/dryrun/`) follow the same job standards: exit codes
+  0/1/2, JSON logs, env-only config.
+- **Dry-run is non-mutating.** The `src/dryrun/runner.ts` command guard refuses to execute any
+  `kubectl` invocation that does not contain `--dry-run=server`. Dev cluster access is opt-in via
+  `RADAR_DRYRUN_KUBECONFIG`; production uses the dedicated `radar-dryrun` service account.
 - **deploy/ is not applied anywhere.** It mirrors sbbb conventions (plain YAML, `DOMAIN_SUFFIX`
   placeholders, VSO secrets, `/__lbheartbeat__` + `/__heartbeat__` probes). Future cluster adoption
   steps are documented in `docs/KUBERNETES.md`.

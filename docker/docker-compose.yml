@@ -52,6 +52,26 @@ services:
       db:
         condition: service_healthy
 
+  dryrun:
+    build:
+      context: ..
+      dockerfile: docker/dryrun.Dockerfile
+    image: sunbeam-radar-dryrun:dev
+    profiles: ["dryrun"]
+    environment:
+      STORAGE: postgres
+      DATABASE_URL: postgresql://radar:radar-dev@db:5432/radar_db?sslmode=disable
+      GIT_BASE_URL: ${GIT_BASE_URL:-https://github.com/sunbeamdotpt/sbbb.git}
+      GIT_BASE_REF: ${GIT_BASE_REF:-mainline}
+      RADAR_DRYRUN_BUILD_ONLY: ${RADAR_DRYRUN_BUILD_ONLY:-false}
+      RADAR_JSON_PATH: /app/data/component-versions.json
+    volumes:
+      - radar-data:/app/data
+      - ${RADAR_DRYRUN_KUBECONFIG:-/dev/null}:/tmp/kubeconfig:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   db-data:
   radar-data:

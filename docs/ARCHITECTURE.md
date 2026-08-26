@@ -18,6 +18,7 @@ previous ──┼─► run if any)   GIT_BASE_URL)   fetchers)                
           ┌──────────────────────── REST API (read-only) ──────────────────┘
           │  GET /api/v1/inventory · /api/v1/components[/{name}] · /health · probes
           │  GET /api/v1/assessments[?risk_level=…] · /api/v1/assessments/{name}
+          │  GET /api/v1/dryruns[?status=…] · /api/v1/dryruns/{name}
           └───────────────────────────────────────────────────────────────────
 
           ┌───────────────────────── assess job (one-shot, step 2) ──────────────────────────┐
@@ -28,6 +29,14 @@ store     │  load latest ──► layered engine (per component) ──► se
           │                  L3 commits → L4 keywords → channel hint → L5 gap fallback           │
           │                  (else unknown)                                                         │
           └───────────────────────────────────────────────────────────────────────────────────────┘
+
+          ┌──────────────────────── dry-run job (one-shot, step 3) ────────────────────────────┐
+          │                                                                                       │
+store     │  load latest ──► filter likely_safe + drifted ──► map to kustomization ──► mutate  │
+(latest   ┼─► inventory +    helm components                base + seed hints       chart → latest│
+assessed  │  assessments    run kustomize build ──► kubectl apply --dry-run=server ──► save     │
+run)      │                                                                                   (same store)    │
+          └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Modules (`src/`)
@@ -36,15 +45,17 @@ store     │  load latest ──► layered engine (per component) ──► se
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schema/component.ts`     | Strict `Component` / `InventoryReport` types and validators. Seed YAML and previous-report JSON are both validated; unknown keys and wrong types are rejected. `toRecord()` emits JSON keys in the contractual report order.                                                                                                                                                          |
 | `schema/assessment.ts`    | Strict `Assessment` / `AssessmentReport` types and validators: 10 risk levels + `SEVERITY_ORDER` (report sort order). Unknown keys and wrong types are rejected, same posture as the component schema.                                                                                                                                                                                |
+| `schema/dryrun.ts`        | Strict `DryRun` / `DryRunReport` types and validators. Status enum: `success`, `build_failed`, `dryrun_failed`, `skipped_no_mapping`, `skipped_unsupported_source`.                                                                                                                                                                                                                   |
 | `domain/version.ts`       | `normalizeVersion` / `versionTuple` / `compareTuples` / `isNewer` — the version-comparison contract (prefix stripping, `_`→`.`, leading-numeric extraction, tuple ordering (shorter shared prefix loses), floating-tag rejection).                                                                                                                                                    |
 | `domain/domain_suffix.ts` | `DOMAIN_SUFFIX` placeholder substitution (default `sunbeam.pt`).                                                                                                                                                                                                                                                                                                                      |
 | `domain/time.ts`          | `generated_at` formatting/parsing (`YYYY-MM-DD HH:MM:SS UTC`).                                                                                                                                                                                                                                                                                                                        |
 | `git/clone.ts`            | Shallow clone of `GIT_BASE_URL`@`GIT_BASE_REF` into a temp dir (`/tmp`, read-only-rootfs friendly) with cleanup.                                                                                                                                                                                                                                                                      |
 | `scan/manifests.ts`       | Manifest scanner: walks `base/*/kustomization.yaml` for `helmCharts`, `images:`, workload manifests, and GitHub release URLs. Powers `--bootstrap` and pin refresh (`refreshPinsFromScan`).                                                                                                                                                                                           |
 | `sources/`                | One fetcher per upstream source: `github_release`, `github_tags`, `helm_chart`, `docker_hub`, `static` (+ `custom`/unknown fallback). All take an injected `HttpClient` (`http.ts`): `FetchHttpClient` in prod, `OfflineHttpClient` under `RADAR_OFFLINE`, stubs in tests.                                                                                                            |
-| `store/`                  | `Store` interface (`loadPrevious` / `saveReport` / `healthCheck` / `close`) plus `AssessmentStore` (`loadLatestAssessments` / `saveAssessments`), with `JsonStore` (dev files) and `PostgresStore` (prod) implementations.                                                                                                                                                            |
+| `store/`                  | `Store` interface (`loadPrevious` / `saveReport` / `healthCheck` / `close`) plus `AssessmentStore` (`loadLatestAssessments` / `saveAssessments`) and `DryRunStore` (`loadLatestDryRuns` / `saveDryRuns`), with `JsonStore` (dev files) and `PostgresStore` (prod) implementations.                                                                                                    |
 | `job/`                    | `config.ts` (env parsing), `inventory.ts` (the pass itself), `main.ts` (entrypoint: clone → run → save → optional JSON mirror; exit 0/1/2).                                                                                                                                                                                                                                           |
 | `assess/`                 | Pipeline step 2: `config.ts` (env parsing), `run.ts` (the pass: latest inventory run → engine → sorted report → save), `engine.ts` (the layered engine), `hints.ts` (seed-hint loading + auto-detected fallbacks), `prechecks.ts` / `structured.ts` / `notes.ts` / `commits.ts` / `keywords.ts` (the layers), `fetch.ts` (release-note fetching), `main.ts` (entrypoint; exit 0/1/2). |
+| `dryrun/`                 | Pipeline step 3: `config.ts` (env parsing), `run.ts` (clone base, load hints, orchestrate), `engine.ts` (filter candidates, collect results), `mapper.ts` (component → kustomization path), `runner.ts` (mutate chart version, kustomize build, guarded kubectl dry-run), `main.ts` (entrypoint; exit 0/1/2).                                                                         |
 | `server/`                 | `routes.ts` (endpoint table), `main.ts` (bind, SIGTERM/SIGINT graceful shutdown).                                                                                                                                                                                                                                                                                                     |
 | `config/env.ts`           | Shared env parsing: booleans, `STORAGE`, `DATABASE_URL` vs `PG*` fallback.                                                                                                                                                                                                                                                                                                            |
 
@@ -95,6 +106,31 @@ The assess job is pipeline step 2: it runs after the inventory job and turns dri
    file with `STORAGE=json`. With postgres + explicit `RADAR_JSON_PATH`, a JSON mirror is also
    written.
 
+## Run lifecycle (dry-run)
+
+The dry-run job is pipeline step 3: it runs after the assess job and previews likely-safe upgrades.
+
+1. **Configure** — everything from env vars (`src/dryrun/config.ts`). Invalid config → exit 2.
+2. **Clone the git base** — same as the inventory job (`GIT_BASE_URL`@`GIT_BASE_REF`); the manifests
+   repo is cloned fresh each run.
+3. **Load hints** — optional `kustomize_path` overrides from `RADAR_SEED_PATH` for components whose
+   base directory doesn't match their name.
+4. **Filter candidates** — from the latest inventory run + assessments, select components where
+   `update_available === true` and `risk_level === "likely_safe"`. Only `source === "helm_chart"`
+   components are supported today; others are recorded as `skipped_unsupported_source`.
+5. **Map** — component name → kustomization directory. `kustomize_path` hint wins, then a slug
+   heuristic (`base/<slugified-name>`), then shorter slug variants (so "Gateway API CRDs" finds
+   `base/gateway-api`). Multi-namespace components use the first namespace from the seed.
+6. **Mutate** — in a temp copy of the mapped directory, update the matching `helmCharts[].version`
+   to the component's `latest` version (chart name is parsed from the upstream `repo::name` form).
+7. **Build** — `kustomize build <temp-dir>`.
+8. **Dry-run** — pipe the rendered manifests to `kubectl apply --dry-run=server -f -`. The runner
+   refuses to execute any `kubectl` command that does not contain `--dry-run=server`. In dev, point
+   `RADAR_DRYRUN_KUBECONFIG` at a kubeconfig; in-cluster, the pod uses its service account.
+9. **Persist** — one `DryRun` record per candidate, sorted by name, then `store.saveDryRuns()`: the
+   `dry_runs` table in postgres, or `RADAR_DRYRUN_JSON_PATH` with `STORAGE=json`. With postgres +
+   explicit `RADAR_JSON_PATH`, a JSON mirror is also written.
+
 ### The layered engine (`src/assess/engine.ts`)
 
 Layers run highest-confidence first; the first decisive verdict wins, and the winning layer is
@@ -134,9 +170,14 @@ recorded in the assessment's `layer` field:
   — one row per assessed component per run, attached to the inventory run it was computed from;
   `position` preserves severity-sorted report order. Re-assessing the same inventory run replaces
   that run's assessments (idempotent re-runs).
+- `dry_runs(run_id, dry_run_at, position, name, current, latest, namespace, kustomize_path, status,
+  stdout, stderr, duration_ms, mutated_helm_version, details)`
+  — one row per dry-run preview per run, attached to the inventory run it was computed from.
+  Re-running dry-runs against the same inventory run replaces that run's previews (idempotent
+  re-runs).
 - Readers always query the latest run; migrations (`db/migrations/001_init.sql`,
-  `002_assessments.sql`) apply idempotently at job/server startup. Plain SQL, no extensions —
-  CNPG-ready.
+  `002_assessments.sql`, `003_dry_runs.sql`) apply idempotently at job/server startup. Plain SQL, no
+  extensions — CNPG-ready.
 
 The append-only runs table gives free history; a future pruning policy can simply delete old `runs`
 rows (cascade cleans `components` and `assessments`).
@@ -157,3 +198,6 @@ values, same key order. The behavioral details that matter live in the module do
 | Upstream fetch fails            | previous value reused (`cached`), or `latest: "error"` on first sight               |
 | Postgres unavailable at startup | job exits 1; server exits non-zero (crash-loop surfaces it)                         |
 | Postgres blip while serving     | `/__heartbeat__` and `/health` go 503; liveness stays 200                           |
+| kustomize build fails           | dry-run status `build_failed`; stdout/stderr captured; other components continue    |
+| kubectl dry-run fails           | dry-run status `dryrun_failed`; stdout/stderr captured; other components continue   |
+| Missing kustomization mapping   | dry-run status `skipped_no_mapping`                                                 |

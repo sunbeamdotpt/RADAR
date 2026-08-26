@@ -1,0 +1,47 @@
+# RADAR dry-run preview job — pipeline step 3.
+# Suspended by default: enable after validating the assess job in-cluster.
+# This job is non-mutating; every kubectl invocation uses --dry-run=server.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: radar-dryrun
+  namespace: radar
+spec:
+  suspend: true
+  schedule: "0 6 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: radar-dryrun
+          restartPolicy: OnFailure
+          containers:
+            - name: dryrun
+              image: sunbeam-radar-dryrun:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: STORAGE
+                  value: postgres
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: radar-db
+                      key: dsn
+                - name: RADAR_SEED_PATH
+                  value: ./seed/component-versions.yaml
+                - name: GIT_BASE_URL
+                  value: https://github.com/sunbeamdotpt/sbbb.git
+                - name: GIT_BASE_REF
+                  value: mainline
+                # Uncomment to skip kubectl and only validate kustomize builds.
+                # - name: RADAR_DRYRUN_BUILD_ONLY
+                #   value: "true"
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "1Gi"
+                  cpu: "1000m"

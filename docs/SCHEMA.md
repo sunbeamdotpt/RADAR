@@ -1,8 +1,9 @@
 # RADAR Schemas
 
-Strict definitions for the registry seed, the JSON report, the assessment report, and the postgres
-tables. Validation lives in `src/schema/component.ts` and `src/schema/assessment.ts`; unknown keys
-and wrong types are rejected outright.
+Strict definitions for the registry seed, the JSON report, the assessment report, the dry-run
+report, and the postgres tables. Validation lives in `src/schema/component.ts`,
+`src/schema/assessment.ts`, and `src/schema/dryrun.ts`; unknown keys and wrong types are rejected
+outright.
 
 ## Component sources
 
@@ -44,6 +45,10 @@ components:
     eol_date: "2026-12-31" # EOL date for that line
     eol_replacement: 3.x # replacement text used in the EOL action
     deprecated: Replaced by cert-manager # presence marks the component deprecated
+
+    # Dry-run hint (optional, curated; consumed by the dry-run job, never
+    # emitted in inventory report records)
+    kustomize_path: base/cert-manager # override the slug heuristic for this component
 ```
 
 Rules:
@@ -56,6 +61,8 @@ Rules:
   kept out of report records. When a hint is absent the assessor auto-detects well-known upstream
   shapes as a fallback (ory upstreams → `versioning_scheme=ory`, OpenSearch →
   `breaking_change_policy=major_only`).
+- Dry-run hint (optional string): `kustomize_path`. Parsed from the seed but kept out of report
+  records; overrides the component-name → kustomization directory heuristic.
 - Any other key → `SchemaError`.
 - `link_template` placeholders: `{tag}` (github/docker), `{version}` and `{app_version}` (helm).
   Formatted with the _latest_ fetched values.
@@ -154,7 +161,49 @@ The step-2 assessor's output, validated by `src/schema/assessment.ts`:
   | 8     | `likely_safe`    | No breaking signals; safe to auto-update                         |
   | 9     | `non_applicable` | Current and latest are identical — nothing to assess             |
 
-## Postgres tables (`db/migrations/001_init.sql`, `002_assessments.sql`)
+## Dry-run report (dry-run-job output / API payload)
+
+The step-3 dry-run preview output, validated by `src/schema/dryrun.ts`:
+
+```json
+{
+  "generated_at": "2026-08-22 02:00:15 UTC",
+  "inventory_generated_at": "2026-08-22 01:00:38 UTC",
+  "assessment_generated_at": "2026-08-22 01:30:12 UTC",
+  "dry_runs": [
+    {
+      "name": "Longhorn",
+      "current": "v1.11.1",
+      "latest": "v1.12.0",
+      "namespace": "longhorn-system",
+      "kustomize_path": "/tmp/radar-base-xxx/base/longhorn",
+      "status": "success",
+      "stdout": "namespace/longhorn-system created (dry-run)",
+      "stderr": "",
+      "duration_ms": 1234,
+      "mutated_helm_version": "v1.12.0",
+      "details": {}
+    }
+  ]
+}
+```
+
+- `inventory_generated_at` and `assessment_generated_at` tie the report to the runs it was computed
+  from. All timestamps use the same `%Y-%m-%d %H:%M:%S UTC` format.
+- Dry-run fields: `name`, `current`, `latest`, `namespace`, `kustomize_path`, `status`, `stdout`,
+  `stderr`, `duration_ms`, `details` (default `{}`). `mutated_helm_version` is present when a Helm
+  chart version was rewritten. Unknown keys are rejected.
+- Status values:
+
+  | Status                       | Meaning                                                                |
+  | ---------------------------- | ---------------------------------------------------------------------- |
+  | `success`                    | `kustomize build` and `kubectl apply --dry-run=server` both succeeded  |
+  | `build_failed`               | `kustomize build` failed                                               |
+  | `dryrun_failed`              | `kustomize build` succeeded but the server-side dry-run failed         |
+  | `skipped_no_mapping`         | No kustomization directory could be found for the component            |
+  | `skipped_unsupported_source` | Component source is not `helm_chart` (no deterministic mutation today) |
+
+## Postgres tables (`db/migrations/001_init.sql`, `002_assessments.sql`, `003_dry_runs.sql`)
 
 ```sql
 runs(
@@ -195,8 +244,26 @@ assessments(
   details     JSONB NOT NULL DEFAULT '{}',
   PRIMARY KEY (run_id, name)
 )
+
+dry_runs(
+  run_id               BIGINT REFERENCES runs(id) ON DELETE CASCADE,
+  dry_run_at           TIMESTAMPTZ NOT NULL,
+  position             INTEGER NOT NULL,          -- name-sorted report order
+  name                 TEXT NOT NULL,
+  current              TEXT NOT NULL,
+  latest               TEXT NOT NULL,
+  namespace            TEXT NOT NULL,
+  kustomize_path       TEXT NOT NULL,
+  status               TEXT NOT NULL,
+  stdout               TEXT NOT NULL DEFAULT '',
+  stderr               TEXT NOT NULL DEFAULT '',
+  duration_ms          INTEGER NOT NULL DEFAULT 0,
+  mutated_helm_version TEXT,                      -- null unless a helm chart was mutated
+  details              JSONB NOT NULL DEFAULT '{}',
+  PRIMARY KEY (run_id, name)
+)
 ```
 
-One `runs` row + N `components` rows per inventory run, and one `assessments` row per assessed
-component attached to the run it was computed from (append-only). Readers use the latest run; the
-latest run is the next run's previous state.
+One `runs` row + N `components` rows per inventory run, one `assessments` row per assessed
+component, and one `dry_runs` row per dry-run preview, all attached to the run they were computed
+from (append-only). Readers use the latest run; the latest run is the next run's previous state.

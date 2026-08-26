@@ -19,18 +19,26 @@ dashboards, and release tooling a canonical answer to "what are we running, and 
   prechecks (fork/floating/deprecated/EOL), version delta, structured manifests (Helm values schema,
   CRD, go.mod), upstream release notes, and changelog keywords. Writes the assessment run to the
   same store.
-- **REST API** (`src/server/`) — read-only JSON over the latest stored report and assessments.
+- **Dry-run job** (`src/dryrun/`) — pipeline step 3, run after the assess job. For every drifted
+  component judged `likely_safe`, it clones the manifest base, rewrites the Helm chart version to
+  `latest`, renders the manifests with `kustomize build`, and pipes them to
+  `kubectl apply --dry-run=server`. Results are stored and served by the API. **This job is
+  non-mutating: every `kubectl` invocation is guarded to contain `--dry-run=server`.**
+- **REST API** (`src/server/`) — read-only JSON over the latest stored report, assessments, and
+  dry-run previews.
 - **Stores** (`src/store/`) — `json` (local file, dev default) or `postgres` (prod).
 
 ## Quickstart (local docker)
 
 ```bash
-scripts/dev-up.sh     # postgres + api on http://127.0.0.1:8080
-scripts/dev-job.sh    # inventory pass (clone sbbb, check upstreams, save)
-scripts/dev-assess.sh # assess pass (compare current vs latest, save risk assessments)
+scripts/dev-up.sh      # postgres + api on http://127.0.0.1:8080
+scripts/dev-job.sh     # inventory pass (clone sbbb, check upstreams, save)
+scripts/dev-assess.sh  # assess pass (compare current vs latest, save risk assessments)
+scripts/dev-dryrun.sh  # dry-run pass (render likely-safe updates, kubectl apply --dry-run=server)
 curl -s http://127.0.0.1:8080/api/v1/inventory | head
 curl -s http://127.0.0.1:8080/api/v1/assessments | head
-scripts/dev-down.sh   # tear down (--volumes to also drop data)
+curl -s http://127.0.0.1:8080/api/v1/dryruns | head
+scripts/dev-down.sh    # tear down (--volumes to also drop data)
 ```
 
 `docker/docker-compose.yml` provides the same stack for compose users.
@@ -40,6 +48,7 @@ scripts/dev-down.sh   # tear down (--volumes to also drop data)
 ```bash
 deno task job                         # STORAGE=json → ./data/component-versions.json
 deno task assess                      # STORAGE=json → ./data/component-versions.assessments.json
+deno task dryrun                      # STORAGE=json → ./data/component-versions.dryruns.json
 deno task serve                       # serves those files on :8080
 deno task job -- --bootstrap          # regenerate the seed from the cloned git base
 ```
@@ -67,6 +76,9 @@ the data model and [docs/API.md](docs/API.md) for endpoints.
 | `RADAR_HOST` / `PORT`       | `0.0.0.0` / `8080`                           | API bind address                                                                |
 | `RADAR_ASSESS_UPDATES_ONLY` | `false`                                      | Assess only components with `update_available`                                  |
 | `RADAR_ASSESS_JSON_PATH`    | `./data/component-versions.assessments.json` | Dev JSON assessment store; also a mirror when `STORAGE=postgres`                |
+| `RADAR_DRYRUN_KUBECONFIG`   | —                                            | Absolute path to a kubeconfig for dev dry-runs (read-only mount)                |
+| `RADAR_DRYRUN_BUILD_ONLY`   | `false`                                      | Skip kubectl and only validate `kustomize build`                                |
+| `RADAR_DRYRUN_JSON_PATH`    | `./data/component-versions.dryruns.json`     | Dev JSON dry-run store; also a mirror when `STORAGE=postgres`                   |
 
 ## CI/CD integration
 
@@ -77,7 +89,8 @@ RADAR is built to sit inside delivery automation, not next to it:
   any runner.
 - **Pipeline gating** — the API's `update_available` flags and the Postgres store let pipelines gate
   releases, open upgrade tickets, or feed release notes. The assess job (step 2) adds per-component
-  risk levels via `/api/v1/assessments`. Example:
+  risk levels via `/api/v1/assessments`; the dry-run job (step 3) previews likely-safe upgrades via
+  `/api/v1/dryruns`. Example:
   `curl -s $RADAR/api/v1/components | jq '[.[] | select(.update_available)]'`
 - **Registry as code** — the seed YAML (`seed/component-versions.yaml`) is the curated source of
   truth; reviews happen in git. `RADAR_AUTO_DETECT=true` proposes new services automatically.

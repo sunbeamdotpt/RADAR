@@ -2,11 +2,13 @@ import { assertEquals } from "jsr:@std/assert@^1";
 import { createHandler } from "../../src/server/routes.ts";
 import type { AssessmentReport } from "../../src/schema/assessment.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
-import type { AssessmentStore, Store } from "../../src/store/store.ts";
+import type { DryRunReport } from "../../src/schema/dryrun.ts";
+import type { AssessmentStore, DryRunStore, Store } from "../../src/store/store.ts";
 
-class StubStore implements Store, AssessmentStore {
+class StubStore implements Store, AssessmentStore, DryRunStore {
   healthy = true;
   assessments: AssessmentReport | null = null;
+  dryRuns: DryRunReport | null = null;
   constructor(public report: InventoryReport | null) {}
   loadPrevious(): Promise<InventoryReport | null> {
     return Promise.resolve(this.report);
@@ -19,6 +21,13 @@ class StubStore implements Store, AssessmentStore {
   }
   saveAssessments(report: AssessmentReport): Promise<void> {
     this.assessments = report;
+    return Promise.resolve();
+  }
+  loadLatestDryRuns(): Promise<DryRunReport | null> {
+    return Promise.resolve(this.dryRuns);
+  }
+  saveDryRuns(report: DryRunReport): Promise<void> {
+    this.dryRuns = report;
     return Promise.resolve();
   }
   healthCheck(): Promise<boolean> {
@@ -174,6 +183,40 @@ Deno.test("assessment endpoints 404 before the first assess run", async () => {
   }
 });
 
+const DRY_RUNS: DryRunReport = {
+  generated_at: "2026-08-21 14:00:00 UTC",
+  inventory_generated_at: "2026-08-21 12:00:00 UTC",
+  assessment_generated_at: "2026-08-21 13:00:00 UTC",
+  dry_runs: [
+    {
+      name: "Longhorn",
+      current: "v1.11.1",
+      latest: "v1.12.0",
+      namespace: "longhorn-system",
+      kustomize_path: "/tmp/base/longhorn",
+      status: "success",
+      stdout: "created (dry-run)",
+      stderr: "",
+      duration_ms: 1234,
+      mutated_helm_version: "v1.12.0",
+      details: {},
+    },
+    {
+      name: "Cert-manager",
+      current: "v1.19.4",
+      latest: "v1.20.0",
+      namespace: "cert-manager",
+      kustomize_path: "/tmp/base/cert-manager",
+      status: "dryrun_failed",
+      stdout: "",
+      stderr: "no matches for kind Issuer",
+      duration_ms: 567,
+      mutated_helm_version: "v1.20.0",
+      details: { kubectl_exit_code: 1 },
+    },
+  ],
+};
+
 Deno.test("assessments are served, filterable, and addressable by name", async () => {
   const store = new StubStore(REPORT);
   store.assessments = ASSESSMENTS;
@@ -196,5 +239,37 @@ Deno.test("assessments are served, filterable, and addressable by name", async (
   assertEquals(one.risk_level, "review");
 
   const missing = await get(handler, "/api/v1/assessments/Nope");
+  assertEquals(missing.status, 404);
+});
+
+Deno.test("dry-run endpoints 404 before the first dry-run job", async () => {
+  const handler = createHandler(new StubStore(REPORT));
+  for (const path of ["/api/v1/dryruns", "/api/v1/dryruns/Longhorn"]) {
+    const res = await get(handler, path);
+    assertEquals(res.status, 404, path);
+    assertEquals((await res.json()).error, "no dry-runs yet — run the radar dry-run job first");
+  }
+});
+
+Deno.test("dry-runs are served, filterable, and addressable by name", async () => {
+  const store = new StubStore(REPORT);
+  store.dryRuns = DRY_RUNS;
+  const handler = createHandler(store);
+
+  const all = await (await get(handler, "/api/v1/dryruns")).json();
+  assertEquals(all.dry_runs.length, 2);
+  assertEquals(all.inventory_generated_at, "2026-08-21 12:00:00 UTC");
+  assertEquals(all.assessment_generated_at, "2026-08-21 13:00:00 UTC");
+
+  const successes = await (await get(handler, "/api/v1/dryruns?status=success")).json();
+  assertEquals(successes.dry_runs.map((d: { name: string }) => d.name), ["Longhorn"]);
+
+  const bad = await get(handler, "/api/v1/dryruns?status=spicy");
+  assertEquals(bad.status, 400);
+
+  const one = await (await get(handler, "/api/v1/dryruns/Cert-manager")).json();
+  assertEquals(one.status, "dryrun_failed");
+
+  const missing = await get(handler, "/api/v1/dryruns/Nope");
   assertEquals(missing.status, 404);
 });

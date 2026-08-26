@@ -11,12 +11,14 @@ import {
 } from "../../src/schema/assessment.ts";
 import type { AssessmentReport } from "../../src/schema/assessment.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
+import type { DryRunReport } from "../../src/schema/dryrun.ts";
 import { OfflineHttpClient } from "../../src/sources/http.ts";
-import type { AssessmentStore, Store } from "../../src/store/store.ts";
+import type { AssessmentStore, DryRunStore, Store } from "../../src/store/store.ts";
 
-class MemoryStore implements Store, AssessmentStore {
+class MemoryStore implements Store, AssessmentStore, DryRunStore {
   report: InventoryReport | null = null;
   assessments: AssessmentReport | null = null;
+  dryRuns: DryRunReport | null = null;
   loadPrevious(): Promise<InventoryReport | null> {
     return Promise.resolve(this.report);
   }
@@ -28,6 +30,13 @@ class MemoryStore implements Store, AssessmentStore {
   }
   saveAssessments(report: AssessmentReport): Promise<void> {
     this.assessments = report;
+    return Promise.resolve();
+  }
+  loadLatestDryRuns(): Promise<DryRunReport | null> {
+    return Promise.resolve(this.dryRuns);
+  }
+  saveDryRuns(report: DryRunReport): Promise<void> {
+    this.dryRuns = report;
     return Promise.resolve();
   }
   healthCheck(): Promise<boolean> {

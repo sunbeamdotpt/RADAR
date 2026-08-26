@@ -1,5 +1,6 @@
 import { assertEquals, assertThrows } from "jsr:@std/assert@^1";
 import { ConfigError, resolveDatabaseUrl } from "../../src/config/env.ts";
+import { loadDryRunConfig } from "../../src/dryrun/config.ts";
 import { loadJobConfig } from "../../src/job/config.ts";
 import { loadServerConfig } from "../../src/server/config.ts";
 
@@ -102,6 +103,47 @@ Deno.test("loadServerConfig defaults and overrides", () => {
   assertEquals(config.port, 9090);
   assertEquals(config.hostname, "127.0.0.1");
   assertEquals(config.databaseUrl, "postgresql://u:p@h/d");
+});
+
+Deno.test("loadDryRunConfig applies documented defaults", () => {
+  const config = loadDryRunConfig({});
+  assertEquals(config.storage, "json");
+  assertEquals(config.gitBaseUrl, "https://github.com/sunbeamdotpt/sbbb.git");
+  assertEquals(config.gitBaseRef, "mainline");
+  assertEquals(config.seedPath, "./seed/component-versions.yaml");
+  assertEquals(config.jsonPath, "./data/component-versions.json");
+  assertEquals(config.dryRunJsonPath, "./data/component-versions.dryruns.json");
+  assertEquals(config.kubeconfig, undefined);
+  assertEquals(config.buildOnly, false);
+  assertEquals(config.offline, false);
+  assertEquals(config.databaseUrl, undefined);
+});
+
+Deno.test("loadDryRunConfig honors env overrides", () => {
+  const config = loadDryRunConfig({
+    STORAGE: "postgres",
+    DATABASE_URL: "postgresql://u:p@db:5432/radar_db",
+    RADAR_JSON_PATH: "/tmp/out.json",
+    RADAR_DRYRUN_JSON_PATH: "/tmp/dry.json",
+    RADAR_SEED_PATH: "/tmp/seed.yaml",
+    GIT_BASE_URL: "https://github.com/x/y.git",
+    GIT_BASE_REF: "main",
+    RADAR_DRYRUN_KUBECONFIG: "/tmp/kubeconfig",
+    RADAR_DRYRUN_BUILD_ONLY: "true",
+    RADAR_OFFLINE: "1",
+  });
+  assertEquals(config.storage, "postgres");
+  assertEquals(config.databaseUrl, "postgresql://u:p@db:5432/radar_db");
+  assertEquals(config.dryRunJsonPath, "/tmp/dry.json");
+  assertEquals(config.gitBaseUrl, "https://github.com/x/y.git");
+  assertEquals(config.kubeconfig, "/tmp/kubeconfig");
+  assertEquals(config.buildOnly, true);
+  assertEquals(config.offline, true);
+});
+
+Deno.test("loadDryRunConfig derives dry-run json path from RADAR_JSON_PATH", () => {
+  const config = loadDryRunConfig({ RADAR_JSON_PATH: "/tmp/out.json" });
+  assertEquals(config.dryRunJsonPath, "/tmp/out.dryruns.json");
 });
 
 Deno.test("loadServerConfig rejects bad ports", () => {

@@ -100,6 +100,65 @@ One assessment record. `name` is URL-encoded and matched exactly, like the compo
 `layer` names the analysis layer that produced the verdict; `details` carries layer-specific
 evidence. `404 {"error":"assessment not found: {name}"}` when absent.
 
+## Dry-runs
+
+The dry-run job (pipeline step 3 — see docs/ARCHITECTURE.md) attaches one dry-run report to the
+latest assessed inventory run; these endpoints serve it.
+
+### `GET /api/v1/dryruns`
+
+The full latest dry-run report. Optional `?status=` narrows `dry_runs` to one status.
+
+```json
+{
+  "generated_at": "2026-08-22 02:00:15 UTC",
+  "inventory_generated_at": "2026-08-22 01:00:38 UTC",
+  "assessment_generated_at": "2026-08-22 01:30:12 UTC",
+  "dry_runs": [
+    {
+      "name": "Longhorn",
+      "current": "v1.11.1",
+      "latest": "v1.12.0",
+      "namespace": "longhorn-system",
+      "kustomize_path": "/tmp/radar-base-xxx/base/longhorn",
+      "status": "success",
+      "stdout": "namespace/longhorn-system created (dry-run)",
+      "stderr": "",
+      "duration_ms": 1234,
+      "mutated_helm_version": "v1.12.0",
+      "details": { "build_exit_code": 0, "kubectl_exit_code": 0 }
+    }
+  ]
+}
+```
+
+Statuses: `success`, `build_failed`, `dryrun_failed`, `skipped_no_mapping`,
+`skipped_unsupported_source`. `404 {"error":"no dry-runs yet — run the radar dry-run job first"}`
+before the first dry-run job; `400 {"error":"invalid status: … (expected one of …)"}` when the
+filter value isn't a known status.
+
+### `GET /api/v1/dryruns/{name}`
+
+One dry-run result. `name` is URL-encoded and matched exactly, like the component endpoints.
+
+```json
+{
+  "name": "Longhorn",
+  "current": "v1.11.1",
+  "latest": "v1.12.0",
+  "namespace": "longhorn-system",
+  "kustomize_path": "/tmp/radar-base-xxx/base/longhorn",
+  "status": "success",
+  "stdout": "namespace/longhorn-system created (dry-run)",
+  "stderr": "",
+  "duration_ms": 1234,
+  "mutated_helm_version": "v1.12.0",
+  "details": {}
+}
+```
+
+`404 {"error":"dry-run not found: {name}"}` when absent.
+
 ## Errors
 
 | Status | Body                                                              | When                      |
@@ -108,8 +167,11 @@ evidence. `404 {"error":"assessment not found: {name}"}` when absent.
 | 404    | `{"error":"not found"}`                                           | Unknown path              |
 | 404    | `{"error":"no inventory yet — run the radar job first"}`          | Store empty               |
 | 404    | `{"error":"no assessments yet — run the radar assess job first"}` | No assessment run yet     |
+| 404    | `{"error":"no dry-runs yet — run the radar dry-run job first"}`   | No dry-run job yet        |
 | 404    | `{"error":"component not found: …"}`                              | Unknown component name    |
 | 404    | `{"error":"assessment not found: …"}`                             | Unknown component name    |
+| 404    | `{"error":"dry-run not found: …"}`                                | Unknown component name    |
+| 400    | `{"error":"invalid status: … (expected one of …)"}`               | Bad `?status=` filter     |
 | 405    | `{"error":"method not allowed"}`                                  | Non-GET on data endpoints |
 | 503    | probe bodies above                                                | Store unreachable         |
 

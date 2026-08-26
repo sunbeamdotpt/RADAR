@@ -13,12 +13,13 @@
     "serve": "deno run --allow-env --allow-net --allow-read src/server/main.ts",
     "job": "deno run --allow-env --allow-net --allow-read --allow-write --allow-run=git src/job/main.ts",
     "assess": "deno run --allow-env --allow-net --allow-read --allow-write src/assess/main.ts",
+    "dryrun": "deno run --allow-env --allow-net --allow-read --allow-write --allow-run=git,kubectl,kustomize,helm src/dryrun/main.ts",
     "test": "deno test --allow-all tests/",
     "test:unit": "deno test --allow-all tests/unit/",
     "test:integration": "deno test --allow-all tests/integration/",
     "test:parity": "deno test --allow-all tests/parity/",
     "coverage": "rm -rf coverage && deno test --allow-all --coverage=coverage tests/unit/ tests/parity/ tests/integration/ && deno coverage coverage --lcov --output=coverage/lcov.info && deno run --allow-read tools/check_coverage.ts",
-    "check": "deno fmt --check && deno lint && deno check src/job/main.ts src/assess/main.ts src/server/main.ts && deno task test:unit && deno task test:parity && deno task coverage"
+    "check": "deno fmt --check && deno lint && deno check src/job/main.ts src/assess/main.ts src/dryrun/main.ts src/server/main.ts && deno task test:unit && deno task test:parity && deno task coverage"
   },
   "fmt": {
     "lineWidth": 100,

@@ -1,5 +1,6 @@
-import type { AssessmentStore, Store } from "../store/store.ts";
 import { RISK_LEVELS } from "../schema/assessment.ts";
+import { DRYRUN_STATUSES } from "../schema/dryrun.ts";
+import type { AssessmentStore, DryRunStore, Store } from "../store/store.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body, null, 2), {
@@ -19,9 +20,11 @@ function json(body: unknown, status = 200): Response {
  *   GET /api/v1/components/{name}            single component record
  *   GET /api/v1/assessments[?risk_level=…]   latest assessment report (optionally filtered)
  *   GET /api/v1/assessments/{name}           single assessment
+ *   GET /api/v1/dryruns[?status=…]           latest dry-run report (optionally filtered)
+ *   GET /api/v1/dryruns/{name}               single dry-run result
  */
 export function createHandler(
-  store: Store & AssessmentStore,
+  store: Store & AssessmentStore & DryRunStore,
 ): (req: Request) => Promise<Response> {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
@@ -99,6 +102,34 @@ export function createHandler(
         return json({ error: `assessment not found: ${name}` }, 404);
       }
       return json(assessment);
+    }
+
+    if (path === "/api/v1/dryruns" || path.startsWith("/api/v1/dryruns/")) {
+      const report = await store.loadLatestDryRuns();
+      if (!report) {
+        return json({ error: "no dry-runs yet — run the radar dry-run job first" }, 404);
+      }
+      if (path === "/api/v1/dryruns") {
+        const status = url.searchParams.get("status");
+        if (status !== null) {
+          if (!(DRYRUN_STATUSES as readonly string[]).includes(status)) {
+            return json({
+              error: `invalid status: ${status} (expected one of ${DRYRUN_STATUSES.join(", ")})`,
+            }, 400);
+          }
+          return json({
+            ...report,
+            dry_runs: report.dry_runs.filter((d) => d.status === status),
+          });
+        }
+        return json(report);
+      }
+      const name = decodeURIComponent(path.slice("/api/v1/dryruns/".length));
+      const dryRun = report.dry_runs.find((d) => d.name === name);
+      if (!dryRun) {
+        return json({ error: `dry-run not found: ${name}` }, 404);
+      }
+      return json(dryRun);
     }
 
     return json({ error: "not found" }, 404);

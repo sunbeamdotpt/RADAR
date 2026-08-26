@@ -9,14 +9,16 @@ cluster.
 
 ```
 deploy/
-├── kustomization.yaml    # namespace radar; wires images to oci.DOMAIN_SUFFIX/studio/radar-{api,job}
+├── kustomization.yaml    # namespace radar; wires images to oci.DOMAIN_SUFFIX/studio/radar-{api,job,dryrun}
 ├── namespace.yaml
 ├── config.yaml           # radar-config ConfigMap: STORAGE, DOMAIN_SUFFIX, GIT_BASE_*, PORT
 ├── vault-secrets.yaml    # VaultAuth vso-auth + VaultDynamicSecret radar-db-creds (dsn key)
 ├── api-deployment.yaml   # 1 replica, probes /__lbheartbeat__ + /__heartbeat__
 ├── api-service.yaml      # ClusterIP :8080
 ├── job-cronjob.yaml      # suspended CronJob "23 */6 * * *", manual trigger or wfe later
-└── assess-cronjob.yaml   # suspended CronJob "53 */6 * * *" (step 2, 30 min after inventory)
+├── assess-cronjob.yaml   # suspended CronJob "53 */6 * * *" (step 2, 30 min after inventory)
+├── dryrun-rbac.yaml      # ServiceAccount + ClusterRole + ClusterRoleBinding for dry-run job
+└── dryrun-cronjob.yaml   # suspended CronJob "0 6 * * *" (step 3, non-mutating dry-run previews)
 ```
 
 Render locally:
@@ -51,9 +53,25 @@ kustomize build deploy
 
   Same env wiring as the inventory job (`radar-config` + `radar-db-creds`); it reads the latest
   inventory run and needs one to exist.
-- Both pods run as the `default` service account **with a token mounted** — VSO's Kubernetes auth
-  needs it to sync `radar-db-creds`. `runAsNonRoot` + `seccompProfile: RuntimeDefault` are set at
-  the pod level.
+- **Dry-run CronJob** (`deploy/dryrun-cronjob.yaml`) — pipeline step 3. Uses the dedicated
+  `sunbeam-radar-dryrun` image (includes `kubectl`, `kustomize`, and `helm`). Scheduled `0 6 * * *`,
+  after the assess CronJob, and suspended by default. **This job is non-mutating:** every `kubectl`
+  invocation uses `--dry-run=server`; the runner code refuses to execute any kubectl command without
+  it. The pod runs as the `radar-dryrun` service account (see `deploy/dryrun-rbac.yaml`), which is
+  granted `get`/`list`/`create` only — server-side dry-run requires `create` on the resources being
+  validated. Trigger manually:
+
+  ```bash
+  kubectl -n radar create job --from=cronjob/radar-dryrun radar-dryrun-manual
+  kubectl -n radar logs job/radar-dryrun-manual
+  ```
+
+  Same env wiring as the other jobs (`radar-config` + `radar-db-creds`); it reads the latest
+  inventory and assessment runs and needs both to exist.
+- The inventory and assess pods run as the `default` service account **with a token mounted** —
+  VSO's Kubernetes auth needs it to sync `radar-db-creds`. The dry-run pod uses the dedicated
+  `radar-dryrun` service account. `runAsNonRoot` + `seccompProfile: RuntimeDefault` are set at the
+  pod level.
 
 ## Out-of-band integration steps (when adopting into sbbb)
 
@@ -61,8 +79,8 @@ These mirror how kanban/goalert are wired. Nothing below exists today.
 
 1. **Database** — create `radar_db` and the `radar` user on the CNPG cluster via an idempotent Job
    in `base/data` (copy `base/data/postgres-goalert-db-job.yaml`, swap names). RADAR's schema
-   (`db/migrations/001_init.sql`, `002_assessments.sql`) is applied by the app itself; the Job only
-   needs `CREATE USER` / `CREATE DATABASE` / `GRANT`.
+   (`db/migrations/001_init.sql`, `002_assessments.sql`, `003_dry_runs.sql`) is applied by the app
+   itself; the Job only needs `CREATE USER` / `CREATE DATABASE` / `GRANT`.
 2. **OpenBao static role** — seed the database secrets-engine role `static-creds/radar` (see
    `base/openbao/vault-bootstrap-job.yaml` for the pattern), rotation matching the other app roles.
    This is what `deploy/vault-secrets.yaml` reads via `static-creds/radar`.

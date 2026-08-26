@@ -1,5 +1,6 @@
 import type { AssessmentReport } from "../schema/assessment.ts";
 import type { InventoryReport } from "../schema/component.ts";
+import type { DryRunReport } from "../schema/dryrun.ts";
 
 /** Metadata recorded alongside each run. */
 export interface RunMeta {
@@ -36,4 +37,15 @@ export interface AssessmentStore {
   loadLatestAssessments(): Promise<AssessmentReport | null>;
   /** Persist an assessment report against the current latest inventory run. */
   saveAssessments(report: AssessmentReport): Promise<void>;
+}
+
+/**
+ * Persistence for step-3 dry-run previews. Dry-runs attach to the latest
+ * assessed run, mirroring the assessment store semantics.
+ */
+export interface DryRunStore {
+  /** Dry-run previews for the latest assessed run, or null if none yet. */
+  loadLatestDryRuns(): Promise<DryRunReport | null>;
+  /** Persist a dry-run report against the current latest assessed run. */
+  saveDryRuns(report: DryRunReport): Promise<void>;
 }
