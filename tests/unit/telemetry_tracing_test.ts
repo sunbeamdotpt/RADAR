@@ -2,7 +2,7 @@ import { assertEquals } from "jsr:@std/assert@^1";
 import { activeSpanContext, withExtractedContext, withSpan } from "../../src/telemetry/tracing.ts";
 
 Deno.test("withSpan returns the function result", async () => {
-  const result = await withSpan("test-span", async (span) => {
+  const result = await withSpan("test-span", (span) => {
     span.setAttribute("test", "true");
     return 42;
   });
@@ -12,7 +12,7 @@ Deno.test("withSpan returns the function result", async () => {
 Deno.test("withSpan records errors and rethrows", async () => {
   let caught: Error | undefined;
   try {
-    await withSpan("failing-span", async () => {
+    await withSpan("failing-span", () => {
       throw new Error("boom");
     });
   } catch (err) {

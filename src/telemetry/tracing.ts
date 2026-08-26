@@ -17,25 +17,35 @@ export const tracer = trace.getTracer("radar", "0.1.0");
  */
 export function withSpan<T>(
   name: string,
-  fn: (span: Span) => Promise<T>,
+  fn: (span: Span) => T | Promise<T>,
   attributes?: Record<string, unknown>,
 ): Promise<T> {
-  return tracer.startActiveSpan(name, async (span) => {
+  return Promise.resolve(tracer.startActiveSpan(name, (span) => {
     if (attributes) {
       for (const [k, v] of Object.entries(attributes)) {
         if (v !== undefined && v !== null) span.setAttribute(k, String(v));
       }
     }
-    try {
-      const result = await fn(span);
+    const settle = (result: T): T => {
       span.end();
       return result;
+    };
+    try {
+      const result = fn(span);
+      if (result instanceof Promise) {
+        return result.then(settle, (err) => {
+          recordError(span, err);
+          span.end();
+          throw err;
+        });
+      }
+      return settle(result);
     } catch (err) {
       recordError(span, err);
       span.end();
       throw err;
     }
-  });
+  }));
 }
 
 function recordError(span: Span, err: unknown): void {

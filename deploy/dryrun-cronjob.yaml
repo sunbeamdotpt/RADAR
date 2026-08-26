@@ -21,6 +21,9 @@ spec:
             - name: dryrun
               image: sunbeam-radar-dryrun:latest
               imagePullPolicy: IfNotPresent
+              envFrom:
+                - configMapRef:
+                    name: radar-config
               env:
                 - name: STORAGE
                   value: postgres
@@ -31,10 +34,6 @@ spec:
                       key: dsn
                 - name: RADAR_SEED_PATH
                   value: ./seed/component-versions.yaml
-                - name: GIT_BASE_URL
-                  value: https://github.com/sunbeamdotpt/sbbb.git
-                - name: GIT_BASE_REF
-                  value: mainline
                 # Uncomment to skip kubectl and only validate kustomize builds.
                 # - name: RADAR_DRYRUN_BUILD_ONLY
                 #   value: "true"

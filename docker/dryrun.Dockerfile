@@ -36,6 +36,9 @@ RUN mkdir -p /app/data && chown deno:deno /app/data
 USER deno
 RUN deno cache --frozen src/dryrun/main.ts
 
+ENV OTEL_DENO=true
+ENV OTEL_SERVICE_NAME=radar
+
 # --allow-write: git base clone (temp dir) + JSON store/mirror.
 # --allow-run=git,kubectl,kustomize,helm,sunbeam: render manifests and dry-run them.
 ENTRYPOINT ["deno", "run", "--allow-env", "--allow-net", "--allow-read", "--allow-write", "--allow-run=git,kubectl,kustomize,helm,sunbeam", "src/dryrun/main.ts"]

@@ -19,6 +19,9 @@ USER deno
 RUN deno cache --frozen src/job/main.ts \
   && deno cache --frozen src/assess/main.ts
 
+ENV OTEL_DENO=true
+ENV OTEL_SERVICE_NAME=radar
+
 # ENTRYPOINT (not CMD): the base image's own ENTRYPOINT is ["deno"], so a plain
 # CMD would be *replaced* by any args passed to `docker run image --bootstrap`,
 # producing `deno --bootstrap`. With ENTRYPOINT, extra args land on the script.

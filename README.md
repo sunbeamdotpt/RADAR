@@ -102,6 +102,35 @@ RADAR is built to sit inside delivery automation, not next to it:
 - **Manifest drift reconciliation** — each run clones the manifests repo and refreshes pinned
   versions from it, so the registry tracks what's actually deployed, not what someone remembered.
 
+## Telemetry
+
+RADAR exposes a Prometheus-compatible `/metrics` endpoint and supports OpenTelemetry via Deno's
+built-in integration.
+
+| Setting                       | Default                                 | Purpose                                                                                        |
+| ----------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `OTEL_DENO`                   | `true` in images / `deploy/config.yaml` | Enable Deno's built-in OTLP exporter for traces, metrics, and logs. Set to `false` to disable. |
+| `OTEL_SERVICE_NAME`           | `radar`                                 | Service name attached to exported telemetry.                                                   |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318`                 | OTLP collector endpoint. Override in-cluster to point at your collector (e.g. Grafana Alloy).  |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf`                         | OTLP transport: `http/protobuf`, `http/json`, or `grpc`.                                       |
+| `OTEL_TRACES_SAMPLER`         | `always_on`                             | Sampling: `always_on`, `always_off`, `traceidratio`, or parent-based variants.                 |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `60000`                                 | Metric export interval in milliseconds.                                                        |
+
+Prometheus metrics (always available on the API):
+
+- `radar_http_requests_total{method,route,status}`
+- `radar_http_request_duration_seconds{method,route,status}`
+- `radar_store_reachable`
+- `radar_last_run_timestamp_seconds{kind}`
+- `radar_components_total{source,risk_level,update_available}`
+- `radar_dryruns_total{status}`
+
+For local debugging, export to the console:
+
+```bash
+OTEL_DENO=true OTEL_EXPORTER_OTLP_PROTOCOL=console deno task serve
+```
+
 ## Testing
 
 ```bash
