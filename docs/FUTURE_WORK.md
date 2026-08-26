@@ -4,7 +4,7 @@ Future work, not yet scheduled. Context: step-2 assessor (`src/assess/`) is live
 through `640b824` plus the uncommitted-at-the-time "v-prefix retry + silence-is-not-safety" fixes
 (`src/assess/fetch.ts`, `src/assess/engine.ts`). Resume from this file.
 
-## 1. `non_applicable` risk level for non-drifted components
+## 1. `non_applicable` risk level for non-drifted components ✅ DONE
 
 **Problem.** Components with `current == latest` (no update available) currently get assessed like
 drifted ones. Layer 2 note analysis can flag them `breaking` (observed live: Blackbox exporter,
@@ -17,29 +17,12 @@ not `likely_safe`. Prechecks that are about the component itself rather than the
 (deprecated, EOL, floating tag, custom fork) must still fire — Tempo's `eol_warning` and the CNPG
 image's `deprecated` are correct on non-drifted components.
 
-**Implementation sketch.**
-
-- `src/schema/assessment.ts`: add `non_applicable` to `RISK_LEVELS` and place it in `SEVERITY_ORDER`
-  (suggest least severe, below `likely_safe`). This is a contractual schema — update validators and
-  docs in the same change.
-- `src/assess/engine.ts`: after prechecks + versioning hints (those stay valid regardless of drift),
-  if `!update_available` / versions match, short-circuit to `non_applicable` before the major-bump
-  rule and layers 1–5. Decide the exact drift test: `update_available` flag vs normalized version
-  equality (current handles multi-tag strings like curl's `"8.9.1 / 8.10.1 /
-  latest"` — prefer
-  reusing `parseSemver` equality, not the raw flag, and define behavior for `latest: unknown` →
-  stays `unknown`).
-- `src/server/routes.ts`: `?risk_level=non_applicable` filter works automatically once the enum is
-  extended; verify the 400 path still rejects junk.
-- DB: `assessments.risk_level` is a plain text column — no migration needed, but confirm.
-- Tests to expect fallout in (they assert `likely_safe` on in-sync components today):
-  - `tests/unit/assess_engine_test.ts` — including the "in-sync → likely_safe" assertion added in
-    the notes-unavailable test (flip it to `non_applicable`).
-  - `tests/unit/assess_run_test.ts` — CFSSL `v1.6.5 → v1.6.5` expects `likely_safe` and a specific
-    severity sort order; both change.
-  - Any layer tests that use equal current/latest fixtures.
-- Docs: `docs/API.md` (enum list), `docs/ARCHITECTURE.md` + `docs/DEVELOPMENT.md` (layer lists and
-  the severity table in `docs/SCHEMA.md`).
+**Implementation (completed in commit after resume).** Added `non_applicable` to
+`RISK_LEVELS`/`SEVERITY_ORDER` in `src/schema/assessment.ts`, `isVersionMatch()` in
+`src/assess/version.ts`, and an early `layer_0_in_sync` short-circuit in `src/assess/engine.ts`
+after prechecks. Updated engine/run/server tests, `L4_ACTIONS`, and docs (`API.md`,
+`ARCHITECTURE.md`, `SCHEMA.md`, `DEVELOPMENT.md`). Live rerun confirmed Blackbox exporter moves from
+`breaking` to `non_applicable`.
 
 ## 2. Option C: fetch release notes across the whole version gap
 

@@ -132,14 +132,14 @@ Deno.test("runAssessment assesses all components, applies hints, sorts by severi
       assertEquals(report.inventory_generated_at, "2026-08-25 12:00:00 UTC");
       assertEquals(report.assessments.length, 3);
 
-      // Severity order: floating_tag(4) < review(6) < likely_safe(8)
+      // Severity order: floating_tag(4) < review(6) < non_applicable(9)
       const names = report.assessments.map((a) => a.name);
       assertEquals(names, ["Tailscale", "Kratos", "CFSSL"]);
       const kratos = report.assessments[1];
       assertEquals(kratos.risk_level, "review");
       assertEquals(kratos.layer, "layer_0_hints", "ory hint from the seed beats major-bump");
       assertEquals(report.assessments[0].risk_level, "floating_tag");
-      assertEquals(report.assessments[2].risk_level, "likely_safe");
+      assertEquals(report.assessments[2].risk_level, "non_applicable");
     },
   );
 });
@@ -223,8 +223,9 @@ Deno.test("assessment schema validators are strict", () => {
 });
 
 Deno.test("SEVERITY_ORDER is total over risk levels", () => {
-  assertEquals(Object.keys(SEVERITY_ORDER).length, 9);
+  assertEquals(Object.keys(SEVERITY_ORDER).length, 10);
   assertEquals(SEVERITY_ORDER.breaking < SEVERITY_ORDER.likely_safe, true);
+  assertEquals(SEVERITY_ORDER.likely_safe < SEVERITY_ORDER.non_applicable, true);
 });
 
 Deno.test("loadAssessConfig derives the assessments path and parses flags", () => {

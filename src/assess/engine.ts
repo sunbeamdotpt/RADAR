@@ -2,7 +2,7 @@ import type { ComponentHints, ComponentRecord } from "../schema/component.ts";
 import type { Assessment, RiskLevel } from "../schema/assessment.ts";
 import type { HttpClient } from "../sources/http.ts";
 import { makeAssessment } from "./verdict.ts";
-import { parseSemver } from "./version.ts";
+import { isVersionMatch, parseSemver } from "./version.ts";
 import {
   applyChannelHint,
   applyVersioningHints,
@@ -20,6 +20,7 @@ import { fetchReleaseNotes, releaseNotesFetchable } from "./fetch.ts";
  * first decisive verdict wins:
  *
  *   L0  prechecks (floating, deprecated, EOL, fork, false-positive)
+ *   L0  in-sync short-circuit → `non_applicable`
  *   L0h version-scheme hints (ory, major_only) — before the major-bump rule
  *   L0  major version bump
  *   L1  structured diffs (helm schema / CRD / go.mod), when data is injected
@@ -56,6 +57,7 @@ const L4_ACTIONS: Record<RiskLevel, string> = {
   eol_warning: "Plan migration",
   deprecated: "Migrate image type",
   custom_fork: "Verify upstream sync",
+  non_applicable: "Nothing to do",
 };
 
 export async function assessComponent(
@@ -70,6 +72,21 @@ export async function assessComponent(
   // Layer 0: prechecks that need no external data.
   const precheck = runPrechecks(comp, hints, opts.now);
   if (precheck) return precheck;
+
+  // No drift? Nothing to assess as an upgrade risk. Prechecks above still fire
+  // for component-level issues (deprecated, EOL, floating tag, custom fork).
+  if (isVersionMatch(current, latest)) {
+    return makeAssessment(
+      name,
+      current,
+      latest,
+      "non_applicable",
+      "Current and latest versions are identical — no upgrade risk to assess",
+      "Nothing to do",
+      "layer_0_in_sync",
+      { current, latest },
+    );
+  }
 
   // Version-scheme hints interpret the version numbers themselves — they must
   // run before the generic major-bump rule reads them as semver.

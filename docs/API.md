@@ -77,8 +77,8 @@ run; `400 {"error":"invalid risk_level: … (expected one of …)"}` when the fi
 risk level.
 
 Risk levels: `breaking`, `deprecated`, `eol_warning`, `false_positive`, `floating_tag`,
-`custom_fork`, `review`, `unknown`, `likely_safe`. Assessments are sorted most-urgent-first in
-exactly that order.
+`custom_fork`, `review`, `unknown`, `likely_safe`, `non_applicable`. Assessments are sorted
+most-urgent-first in exactly that order.
 
 ### `GET /api/v1/assessments/{name}`
 

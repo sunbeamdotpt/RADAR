@@ -100,12 +100,12 @@ Deno.test("eol hint ignores other version lines and far-future dates", async () 
     comp({ current: "v2.10.0", latest: "v2.10.0", update_available: false }),
     { eol_version_line: "2.9", eol_date: "2026-12-31" },
   );
-  assertEquals(other.risk_level, "likely_safe"); // falls through to gap fallback
+  assertEquals(other.risk_level, "non_applicable"); // in-sync, wrong version line
   const future = await assess(
     comp({ current: "v2.9.0", latest: "v2.9.0", update_available: false }),
     { eol_version_line: "2.9", eol_date: "2035-01-01" },
   );
-  assertEquals(future.risk_level, "likely_safe");
+  assertEquals(future.risk_level, "non_applicable");
 });
 
 Deno.test("floating tag (Tailscale stable)", async () => {
@@ -147,9 +147,10 @@ Deno.test("multi-tag current parses first token (curl 8.9.1 / … → gap review
   assertEquals(a.layer, "layer_5_gap_fallback");
 });
 
-Deno.test("small same-major gap is likely_safe; unknown latest is unknown", async () => {
+Deno.test("in-sync components are non_applicable; unknown latest is unknown", async () => {
   const safe = await assess(comp({ current: "v1.6.5", latest: "v1.6.5", update_available: false }));
-  assertEquals(safe.risk_level, "likely_safe");
+  assertEquals(safe.risk_level, "non_applicable");
+  assertEquals(safe.layer, "layer_0_in_sync");
   const unk = await assess(comp({ current: "v0.3.0", latest: "unknown", source: "static" }));
   assertEquals(unk.risk_level, "unknown");
   assertEquals(unk.layer, "layer_6_fallback");
@@ -369,7 +370,7 @@ Deno.test("drifted small-gap with fetchable-but-empty notes is unknown, not like
   assertEquals(a.layer, "layer_5_gap_fallback");
   assertEquals(a.details.notes_unavailable, true);
 
-  // No drift → still likely_safe; nothing to be unsafe about.
+  // No drift → non_applicable; nothing to be unsafe about.
   const inSync = await assessComponent(
     comp({ latest: "1.0.0", update_available: false }),
     {},
@@ -377,7 +378,8 @@ Deno.test("drifted small-gap with fetchable-but-empty notes is unknown, not like
     undefined,
     { now: NOW },
   );
-  assertEquals(inSync.risk_level, "likely_safe");
+  assertEquals(inSync.risk_level, "non_applicable");
+  assertEquals(inSync.layer, "layer_0_in_sync");
 
   // Sources with no text notes by design (docker hub) keep the old behavior.
   const docker = await assessComponent(

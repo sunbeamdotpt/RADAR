@@ -12,6 +12,7 @@ export const RISK_LEVELS = [
   "review",
   "unknown",
   "likely_safe",
+  "non_applicable",
 ] as const;
 
 export type RiskLevel = (typeof RISK_LEVELS)[number];
@@ -27,6 +28,7 @@ export const SEVERITY_ORDER: Record<RiskLevel, number> = {
   review: 6,
   unknown: 7,
   likely_safe: 8,
+  non_applicable: 9,
 };
 
 export interface Assessment {

@@ -12,7 +12,13 @@ export interface Semver {
   patch: number;
 }
 
-/** Parse a (possibly multi-tag, possibly prefixed) version string. Null when nothing parses. */
+/** True when both versions parse and resolve to the same semver triple. */
+export function isVersionMatch(a: string, b: string): boolean {
+  const x = parseSemver(a);
+  const y = parseSemver(b);
+  if (!x || !y) return false;
+  return x.major === y.major && x.minor === y.minor && x.patch === y.patch;
+}
 export function parseSemver(tag: string): Semver | null {
   for (const part of tag.split("/")) {
     const norm = normalizeVersion(part.trim());

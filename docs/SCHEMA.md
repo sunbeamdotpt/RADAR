@@ -152,6 +152,7 @@ The step-2 assessor's output, validated by `src/schema/assessment.ts`:
   | 6     | `review`         | Signals warrant human review                                     |
   | 7     | `unknown`        | Insufficient data to decide                                      |
   | 8     | `likely_safe`    | No breaking signals; safe to auto-update                         |
+  | 9     | `non_applicable` | Current and latest are identical — nothing to assess             |
 
 ## Postgres tables (`db/migrations/001_init.sql`, `002_assessments.sql`)
 

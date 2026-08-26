@@ -152,6 +152,16 @@ const ASSESSMENTS: AssessmentReport = {
       layer: "layer_0_precheck",
       details: {},
     },
+    {
+      name: "CFSSL",
+      current: "v1.6.5",
+      latest: "v1.6.5",
+      risk_level: "non_applicable",
+      reason: "No drift",
+      action: "Nothing to do",
+      layer: "layer_0_in_sync",
+      details: {},
+    },
   ],
 };
 
@@ -170,11 +180,14 @@ Deno.test("assessments are served, filterable, and addressable by name", async (
   const handler = createHandler(store);
 
   const all = await (await get(handler, "/api/v1/assessments")).json();
-  assertEquals(all.assessments.length, 2);
+  assertEquals(all.assessments.length, 3);
   assertEquals(all.inventory_generated_at, "2026-08-21 12:00:00 UTC");
 
   const breaking = await (await get(handler, "/api/v1/assessments?risk_level=breaking")).json();
   assertEquals(breaking.assessments.map((a: { name: string }) => a.name), ["Valkey"]);
+
+  const na = await (await get(handler, "/api/v1/assessments?risk_level=non_applicable")).json();
+  assertEquals(na.assessments.map((a: { name: string }) => a.name), ["CFSSL"]);
 
   const bad = await get(handler, "/api/v1/assessments?risk_level=spicy");
   assertEquals(bad.status, 400);
