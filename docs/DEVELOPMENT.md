@@ -133,7 +133,9 @@ winning layer is recorded in each assessment's `layer` field):
 5. **L1 structured diffs** (`structured.ts`) — Helm `values.schema.json`, CRD manifests, `go.mod`;
    only when the data is injected (acquisition is out of scope for the engine).
 6. **L2 release-note structure** (`notes.ts`) — breaking/removal/deprecation section detection over
-   fetched release notes (`fetch.ts`, soft-fail) plus curated `notes`.
+   fetched release notes (`fetch.ts`, soft-fail) plus curated `notes`. For GitHub releases, notes
+   are fetched across the whole version gap (not just the latest release) so breakage announced in
+   intermediate releases is visible.
 7. **L3 commit analysis** (`commits.ts`) — conventional-commit breaking markers, when commits are
    injected.
 8. **L4 weighted keywords** (`keywords.ts`) — scored patterns, positive for risk, negative for

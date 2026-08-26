@@ -276,7 +276,9 @@ Deno.test("fetchReleaseNotes prefers the github API body and forwards the token"
     },
     text: () => Promise.reject(new Error("should not be called")),
   };
+  // current == latest → range fetch is skipped, single-release path is exercised.
   const c = comp({
+    current: "v1.21.1",
     latest: "v1.21.1",
     link_template: "https://github.com/cert-manager/cert-manager/releases/tag/{tag}",
   });
@@ -325,6 +327,9 @@ Deno.test("fetchReleaseNotes retries the v-toggled tag when the resolved URL 404
   const http: HttpClient = {
     json: (url: string) => {
       calls.push(url);
+      if (url.includes("/releases?per_page=")) {
+        return Promise.resolve([]); // no intermediate releases
+      }
       if (url.endsWith("/releases/tags/v1.12.1")) {
         return Promise.resolve({ body: "## Breaking Changes\n- x" });
       }
@@ -343,6 +348,7 @@ Deno.test("fetchReleaseNotes retries the v-toggled tag when the resolved URL 404
   const notes = await fetchReleaseNotes(c, http);
   assertEquals(notes, "## Breaking Changes\n- x");
   assertEquals(calls, [
+    "https://api.github.com/repos/longhorn/longhorn/releases?per_page=100",
     "https://api.github.com/repos/longhorn/longhorn/releases/tags/1.12.1",
     "https://api.github.com/repos/longhorn/longhorn/releases/tags/v1.12.1",
   ]);
@@ -395,4 +401,76 @@ Deno.test("drifted small-gap with fetchable-but-empty notes is unknown, not like
     { now: NOW },
   );
   assertEquals(docker.risk_level, "likely_safe");
+});
+
+Deno.test("fetchReleaseNotes concatenates intermediate release notes across the gap", async () => {
+  const http: HttpClient = {
+    json: (url: string) => {
+      if (url.includes("/releases?per_page=")) {
+        return Promise.resolve([
+          { tag_name: "v1.2.4", body: "patch fixes", draft: false, prerelease: false },
+          {
+            tag_name: "v1.2.3",
+            body: "## Breaking Changes\n- removed X",
+            draft: false,
+            prerelease: false,
+          },
+          { tag_name: "v1.2.2", body: "bugfixes", draft: false, prerelease: false },
+          { tag_name: "v1.2.0", body: "initial", draft: false, prerelease: false },
+        ]);
+      }
+      return Promise.reject(new Error("should not call single-release API"));
+    },
+    text: () => Promise.reject(new Error("should not call text fallback")),
+  };
+  const c = comp({
+    current: "v1.2.1",
+    latest: "v1.2.4",
+    link_template: "https://github.com/o/r/releases/tag/{tag}",
+  });
+  const notes = await fetchReleaseNotes(c, http);
+  assertEquals(notes.includes("## Breaking Changes"), true, "catches intermediate breakage");
+  assertEquals(notes.includes("# v1.2.3"), true);
+  assertEquals(notes.includes("# v1.2.2"), true);
+  assertEquals(notes.includes("# v1.2.0"), false, "current or older releases are excluded");
+  assertEquals(notes.includes("# v1.2.4"), false, "latest release is excluded");
+  assertEquals(notes.indexOf("# v1.2.3") < notes.indexOf("# v1.2.2"), true, "newest first");
+});
+
+Deno.test("fetchReleaseNotes skips drafts and prereleases in the gap", async () => {
+  const http: HttpClient = {
+    json: () =>
+      Promise.resolve([
+        { tag_name: "v1.1.2", body: "final", draft: false, prerelease: false },
+        { tag_name: "v1.1.1-rc1", body: "rc", draft: false, prerelease: true },
+        { tag_name: "v1.1.1-beta", body: "this is a draft", draft: true, prerelease: false },
+        { tag_name: "v1.1.1", body: "stable release", draft: false, prerelease: false },
+      ]),
+    text: () => Promise.reject(new Error("x")),
+  };
+  const c = comp({
+    current: "v1.1.0",
+    latest: "v1.1.2",
+    link_template: "https://github.com/o/r/releases/tag/{tag}",
+  });
+  const notes = await fetchReleaseNotes(c, http);
+  assertEquals(notes.includes("stable release"), true);
+  assertEquals(notes.includes("rc"), false);
+  assertEquals(notes.includes("this is a draft"), false);
+});
+
+Deno.test("fetchReleaseNotes falls back to single release when range fetch fails", async () => {
+  const http: HttpClient = {
+    json: (url: string) => {
+      if (url.includes("/releases?per_page=")) return Promise.reject(new Error("list down"));
+      return Promise.resolve({ body: "single release notes" });
+    },
+    text: () => Promise.reject(new Error("x")),
+  };
+  const c = comp({
+    current: "v1.0.0",
+    latest: "v1.1.0",
+    link_template: "https://github.com/o/r/releases/tag/{tag}",
+  });
+  assertEquals(await fetchReleaseNotes(c, http), "single release notes");
 });

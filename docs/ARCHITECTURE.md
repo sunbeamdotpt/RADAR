@@ -24,9 +24,10 @@ previous ──┼─► run if any)   GIT_BASE_URL)   fetchers)                
           │                                                                                   │
 store     │  load latest ──► layered engine (per component) ──► severity- ──► save            │
 (latest   ┼─► inventory    L0 prechecks → L0h hints → L0 major bump → L1     sorted  (same    │
- run)     │  run           structured diffs → L2 notes → L3 commits →               store)    │
-          │                  L4 keywords → channel hint → L5 gap fallback (else unknown)      │
-          └───────────────────────────────────────────────────────────────────────────────────┘
+ run)     │  run           structured diffs → L2 notes (gap-wide for GitHub) →                 store)    │
+          │                  L3 commits → L4 keywords → channel hint → L5 gap fallback           │
+          │                  (else unknown)                                                         │
+          └───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Modules (`src/`)

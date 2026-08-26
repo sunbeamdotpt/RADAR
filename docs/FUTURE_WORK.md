@@ -24,28 +24,20 @@ after prechecks. Updated engine/run/server tests, `L4_ACTIONS`, and docs (`API.m
 `ARCHITECTURE.md`, `SCHEMA.md`, `DEVELOPMENT.md`). Live rerun confirmed Blackbox exporter moves from
 `breaking` to `non_applicable`.
 
-## 2. Option C: fetch release notes across the whole version gap
+## 2. Option C: fetch release notes across the whole version gap ✅ DONE
 
-**Problem.** Only the _latest_ release's notes are fetched. Breaking changes announced in an
-intermediate release (e.g. Longhorn v1.12.0 when latest is v1.12.1) are invisible. User said "we
+**Problem.** Only the _latest_ release's notes were fetched. Breaking changes announced in an
+intermediate release (e.g. Longhorn v1.12.0 when latest is v1.12.1) were invisible. User said "we
 will probably need C soon after" A+B.
 
-**Implementation sketch.**
-
-- For github_release / github_tags sources (and github link_templates generally): use
-  `GET /repos/{owner}/{repo}/releases?per_page=100`, select releases with tags strictly between
-  `current` and `latest` (parse with `src/assess/version.ts` `parseSemver`; skip unparseable tags),
-  concatenate their `body` fields newest-first with a `# <tag>` separator so L2 headers stay
-  attributable.
-- Cap total notes size (suggest ~200 KB) and page count (1 page) to bound runtime and memory; log a
-  line when truncating.
-- Keep the v-toggle retry from fix A for the single-release path; the list endpoint doesn't need it.
-- Forward `GITHUB_TOKEN` (already plumbed); mind rate limits — one extra call per drifted github
-  component per run.
-- `RADAR_OFFLINE` / injected `opts.releaseNotes` behavior unchanged (tests stay hermetic).
-- Engine: no layer changes needed — L2/L4 already analyze a combined notes string.
-- Tests: unit-test the range selection (v-prefixed, unprefixed, mixed, prereleases, gap with no
-  intermediate releases); stub-HttpClient test that concatenation order and separators are right.
+**Implementation (completed in commit after resume).** `src/assess/fetch.ts` now calls
+`GET /repos/{owner}/{repo}/releases?per_page=100` for GitHub release links when `current` and
+`latest` are parseable and drifted. It selects releases with tags strictly between the two versions
+(using `parseSemver`), skips drafts and prereleases, and concatenates their bodies newest-first with
+a `# <tag>` separator. The combined text is capped at ~200 KB; single-release fallback (with
+v-prefix retry) still applies when the range fetch yields nothing. `GITHUB_TOKEN` is forwarded. Live
+rerun saw additional components flip to `breaking` (Cert-manager, Vault Secrets Operator,
+Elasticsearch exporter, Headscale) because intermediate release notes were now visible.
 
 ## Observations parked during the 2026-08-25 session
 

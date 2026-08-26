@@ -1,5 +1,6 @@
 import type { ComponentRecord } from "../schema/component.ts";
 import type { HttpClient } from "../sources/http.ts";
+import { parseSemver } from "./version.ts";
 
 /**
  * Release-note fetching for the assessor.
@@ -7,7 +8,12 @@ import type { HttpClient } from "../sources/http.ts";
  * Resolves the component's link_template against the latest version, prefers
  * the GitHub releases API (structured `body`) for github.com links, and skips
  * registries that don't publish text notes (Docker Hub, OCI registries).
- * Failures are soft: no notes is a normal outcome, not an error.
+ *
+ * For GitHub releases, when `current` and `latest` are both parseable and
+ * drifted, the fetcher asks for the recent release list and concatenates the
+ * bodies of releases strictly between the two versions. This catches breaking
+ * changes announced in intermediate releases (e.g. v1.12.0 when latest is
+ * v1.12.1). Failures are soft: no notes is a normal outcome, not an error.
  */
 
 /** Resolve {tag}/{version}/{app_version} placeholders against the latest version. */
@@ -34,8 +40,6 @@ export function githubApiUrl(url: string): string | null {
   return api !== url && api.includes("api.github.com/repos/") ? api : null;
 }
 
-const NO_NOTES_HOSTS = /hub\.docker\.com|ghcr\.io|quay\.io|oci\.|src\.|registry\./i;
-
 /**
  * Toggle a leading "v" on the tag segment of a github release URL
  * (`…/releases/tag/1.2.3` ↔ `…/releases/tag/v1.2.3`). Seed templates can't
@@ -54,11 +58,97 @@ export function releaseNotesFetchable(comp: ComponentRecord): boolean {
   return url !== null && !NO_NOTES_HOSTS.test(url);
 }
 
+const NO_NOTES_HOSTS = /hub\.docker\.com|ghcr\.io|quay\.io|oci\.|src\.|registry\./i;
+
+/** Parse `owner/repo` out of a github release page URL. */
+function githubRepoFromReleaseUrl(url: string): { owner: string; repo: string } | null {
+  const m = url.match(/github\.com\/([^/]+)\/([^/]+)\/releases(?:\/|$)/);
+  if (!m) return null;
+  return { owner: m[1], repo: m[2] };
+}
+
+/** Compare two parsed semvers numerically. */
+function compareSemver(
+  a: { major: number; minor: number; patch: number },
+  b: { major: number; minor: number; patch: number },
+): number {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  return a.patch - b.patch;
+}
+
+const RANGE_NOTES_CAP = 200_000;
+const RANGE_PAGE_SIZE = 100;
+
+async function fetchRangeNotes(
+  comp: ComponentRecord,
+  http: HttpClient,
+  token?: string,
+): Promise<string> {
+  const url = resolveUrl(comp.link_template, comp);
+  if (!url || NO_NOTES_HOSTS.test(url)) return "";
+
+  const repo = githubRepoFromReleaseUrl(url);
+  if (!repo) return "";
+
+  const cur = parseSemver(comp.current);
+  const lat = parseSemver(comp.latest);
+  if (!cur || !lat || compareSemver(lat, cur) <= 0) return "";
+
+  const listUrl =
+    `https://api.github.com/repos/${repo.owner}/${repo.repo}/releases?per_page=${RANGE_PAGE_SIZE}`;
+  let releases: unknown;
+  try {
+    releases = await http.json(listUrl, token);
+  } catch {
+    return "";
+  }
+  if (!Array.isArray(releases)) return "";
+
+  const pieces: string[] = [];
+  let size = 0;
+
+  for (const rel of releases) {
+    if (!rel || typeof rel !== "object") continue;
+    if ((rel as Record<string, unknown>).draft) continue;
+    if ((rel as Record<string, unknown>).prerelease) continue;
+
+    const tag = (rel as Record<string, unknown>).tag_name;
+    if (typeof tag !== "string") continue;
+
+    const sv = parseSemver(tag);
+    if (!sv) continue;
+    if (compareSemver(sv, cur) <= 0 || compareSemver(sv, lat) >= 0) continue;
+
+    const body = (rel as Record<string, unknown>).body;
+    const text = typeof body === "string" ? body : "";
+    if (!text) continue;
+
+    const piece = `# ${tag}\n${text}`;
+    if (size + piece.length > RANGE_NOTES_CAP) {
+      pieces.push(
+        `# _truncated_\nRelease notes capped at ${RANGE_NOTES_CAP} characters; run fetched a larger gap than this.`,
+      );
+      break;
+    }
+    pieces.push(piece);
+    size += piece.length + 1; // +1 for the joining newline
+  }
+
+  return pieces.join("\n");
+}
+
 export async function fetchReleaseNotes(
   comp: ComponentRecord,
   http: HttpClient,
   token?: string,
 ): Promise<string> {
+  // Try to read notes across the whole version gap first. If that yields
+  // nothing, fall back to the single latest release (keeps behavior for
+  // non-GitHub sources and gaps with no intermediate releases).
+  const rangeNotes = await fetchRangeNotes(comp, http, token);
+  if (rangeNotes) return rangeNotes;
+
   const url = resolveUrl(comp.link_template, comp);
   if (!url) return "";
   if (NO_NOTES_HOSTS.test(url)) return "";
