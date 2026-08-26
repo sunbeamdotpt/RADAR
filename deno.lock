@@ -13,7 +13,8 @@
     "jsr:@std/path@*": "1.1.6",
     "jsr:@std/path@1": "1.1.6",
     "jsr:@std/path@^1.0.8": "1.1.6",
-    "jsr:@std/yaml@^1.0.5": "1.2.0"
+    "jsr:@std/yaml@^1.0.5": "1.2.0",
+    "npm:@opentelemetry/api@^1.9.1": "1.9.1"
   },
   "jsr": {
     "@db/postgres@0.19.5": {
@@ -57,10 +58,16 @@
       "integrity": "20beb41e4983ba3437dbefac62b14061ab058e8a187596f19d28ff9035f6e6cf"
     }
   },
+  "npm": {
+    "@opentelemetry/api@1.9.1": {
+      "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q=="
+    }
+  },
   "workspace": {
     "dependencies": [
       "jsr:@db/postgres@~0.19.3",
-      "jsr:@std/yaml@^1.0.5"
+      "jsr:@std/yaml@^1.0.5",
+      "npm:@opentelemetry/api@^1.9.1"
     ]
   }
 }

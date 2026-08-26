@@ -1,5 +1,5 @@
-import { assertEquals } from "jsr:@std/assert@^1";
-import { createHandler } from "../../src/server/routes.ts";
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
+import { createHandler, resetRouteMetrics } from "../../src/server/routes.ts";
 import type { AssessmentReport } from "../../src/schema/assessment.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
 import type { DryRunReport } from "../../src/schema/dryrun.ts";
@@ -266,4 +266,42 @@ Deno.test("dry-runs are served, filterable, and addressable by namespace", async
 
   const missing = await get(handler, "/api/v1/dryruns/Nope");
   assertEquals(missing.status, 404);
+});
+
+Deno.test("/metrics exposes Prometheus text with business metrics", async () => {
+  resetRouteMetrics();
+  const store = new StubStore(REPORT);
+  store.assessments = ASSESSMENTS;
+  store.dryRuns = DRY_RUNS;
+  const handler = createHandler(store);
+
+  const res = await get(handler, "/metrics");
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("content-type"), "text/plain; version=0.0.4; charset=utf-8");
+
+  const body = await res.text();
+  assertStringIncludes(body, "# HELP radar_http_requests_total");
+  assertStringIncludes(body, "# HELP radar_components_total");
+  assertStringIncludes(body, "radar_store_reachable 1");
+  assertStringIncludes(body, 'source="github_release"');
+  assertStringIncludes(body, 'radar_components_total{risk_level="non_applicable",');
+  assertStringIncludes(body, 'radar_dryruns_total{status="success"} 1');
+});
+
+Deno.test("HTTP requests are counted and timed", async () => {
+  resetRouteMetrics();
+  const handler = createHandler(new StubStore(null));
+  await get(handler, "/__lbheartbeat__");
+  await get(handler, "/api/v1/inventory");
+
+  const res = await get(handler, "/metrics");
+  const body = await res.text();
+  assertStringIncludes(
+    body,
+    'radar_http_requests_total{method="GET",route="/__lbheartbeat__",status="200"} 1',
+  );
+  assertStringIncludes(
+    body,
+    'radar_http_requests_total{method="GET",route="/api/v1/inventory",status="404"} 1',
+  );
 });

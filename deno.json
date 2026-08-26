@@ -6,6 +6,7 @@
     "./domain": "./src/domain/version.ts"
   },
   "imports": {
+    "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.1",
     "@std/yaml": "jsr:@std/yaml@^1.0.5",
     "@db/postgres": "jsr:@db/postgres@^0.19.3"
   },

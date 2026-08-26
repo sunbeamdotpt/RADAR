@@ -1,3 +1,5 @@
+import { activeSpanContext } from "./telemetry/tracing.ts";
+
 /** Structured JSON-lines logging (one object per line on stdout). */
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
@@ -7,6 +9,7 @@ export function log(level: LogLevel, message: string, fields: Record<string, unk
     ts: new Date().toISOString(),
     level,
     message,
+    ...activeSpanContext(),
     ...fields,
   });
   if (level === "error") {
