@@ -1,3 +1,8 @@
+---
+title: "RADAR on Kubernetes"
+description: "deploy/ contains plain-YAML, kustomize-ready manifests following the sbbb conventions (no Helm, no Ingress, DOMAIN_SUFFIX placeholders, secrets via the Vault Secrets Operator). Nothing here is..."
+---
+
 # RADAR on Kubernetes
 
 `deploy/` contains plain-YAML, kustomize-ready manifests following the sbbb conventions (no Helm, no

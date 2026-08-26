@@ -1,3 +1,8 @@
+---
+title: "RADAR"
+description: "Release Automation & Deployment Asset Registry. Deno + TypeScript service that tracks deployment asset versions (Kubernetes manifests, Helm charts, GitHub releases, Docker images) and reports..."
+---
+
 # RADAR
 
 Release Automation & Deployment Asset Registry. Deno + TypeScript service that tracks deployment

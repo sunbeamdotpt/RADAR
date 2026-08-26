@@ -1,3 +1,8 @@
+---
+title: "RADAR"
+description: "Release Automation & Deployment Asset Registry — tracks the software versions pinned in the Sunbeam Kubernetes platform (Kubernetes manifests, Helm charts, GitHub releases, Docker images) and..."
+---
+
 # RADAR
 
 **Release Automation & Deployment Asset Registry** — tracks the software versions pinned in the

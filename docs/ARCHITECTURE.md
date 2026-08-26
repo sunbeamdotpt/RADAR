@@ -1,3 +1,8 @@
+---
+title: "RADAR Architecture"
+description: "High-level architecture, data flow, and module layout for RADAR."
+---
+
 # RADAR Architecture
 
 ## Overview

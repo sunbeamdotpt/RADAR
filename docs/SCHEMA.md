@@ -1,3 +1,8 @@
+---
+title: "RADAR Schemas"
+description: "Strict definitions for the registry seed, the JSON report, the assessment report, the dry-run report, and the postgres tables. Validation lives in src/schema/component.ts,..."
+---
+
 # RADAR Schemas
 
 Strict definitions for the registry seed, the JSON report, the assessment report, the dry-run

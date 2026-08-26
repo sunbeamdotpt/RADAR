@@ -1,3 +1,8 @@
+---
+title: "RADAR REST API"
+description: "Read-only JSON over the latest stored inventory report and assessment report. Base URL in local dev: http://127.0.0.1:8080. No authentication (cluster-internal service; expose via Sunbeam Proxy if..."
+---
+
 # RADAR REST API
 
 Read-only JSON over the latest stored inventory report and assessment report. Base URL in local dev:
