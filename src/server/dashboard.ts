@@ -214,6 +214,20 @@ const html = `<!DOCTYPE html>
     .badge-dryrun-skipped_unsupported_source { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
     .badge-dryrun-none { background: transparent; color: var(--text-muted); border: 1px dashed var(--border-default); }
 
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    th.sortable:hover { color: var(--beam-gold); }
+    th.sortable .sort-indicator {
+      display: inline-block;
+      width: 1em;
+      margin-left: 0.25rem;
+      color: var(--beam-gold);
+      font-size: 0.625rem;
+    }
+
     .reason {
       font-size: 0.75rem;
       color: var(--text-secondary);
@@ -277,6 +291,15 @@ const html = `<!DOCTYPE html>
       skipped_no_mapping: "⏭️", skipped_unsupported_source: "🚫", none: "—",
     };
 
+    const DRYRUN_ORDER = {
+      success: 0,
+      skipped_no_mapping: 1,
+      skipped_unsupported_source: 2,
+      build_failed: 3,
+      dryrun_failed: 4,
+      none: 5,
+    };
+
     function formatLink(template, latest) {
       if (!template || !latest) return null;
       return template
@@ -337,7 +360,7 @@ const html = `<!DOCTYPE html>
         }
       }
 
-      const components = inventory.map(c => {
+      let components = inventory.map(c => {
         const a = assessByName.get(c.name);
         const d = dryRunByComponent.get(c.name) || dryRunByNamespace.get(c.namespace);
         return {
@@ -348,12 +371,133 @@ const html = `<!DOCTYPE html>
           dryrun_status: d ? d.status : "none",
           dryrun_namespace: d ? d.namespace : "",
         };
-      }).sort((a, b) => {
-        const sa = SEVERITY_ORDER[a.risk_level] ?? 99;
-        const sb = SEVERITY_ORDER[b.risk_level] ?? 99;
-        if (sa !== sb) return sa - sb;
-        return a.name.localeCompare(b.name);
       });
+
+      let sortCol = "assessment";
+      let sortDir = 1;
+
+      function parseVersion(v) {
+        return String(v)
+          .replace(/^v/i, "")
+          .split(/[.-]/)
+          .map(p => {
+            const n = parseInt(p, 10);
+            return Number.isNaN(n) ? p.toLowerCase() : n;
+          });
+      }
+
+      function compareVersion(a, b) {
+        const av = parseVersion(a);
+        const bv = parseVersion(b);
+        const len = Math.max(av.length, bv.length);
+        for (let i = 0; i < len; i++) {
+          const ai = av[i] ?? 0;
+          const bi = bv[i] ?? 0;
+          if (typeof ai === "number" && typeof bi === "number") {
+            if (ai !== bi) return ai - bi;
+          } else {
+            const as = String(a).replace(/^v/i, "");
+            const bs = String(b).replace(/^v/i, "");
+            return as.localeCompare(bs);
+          }
+        }
+        return String(a).localeCompare(String(b));
+      }
+
+      function compareRows(a, b) {
+        const dir = sortDir;
+        let diff = 0;
+        switch (sortCol) {
+          case "component":
+            diff = a.name.localeCompare(b.name);
+            break;
+          case "current":
+            diff = compareVersion(a.current, b.current);
+            break;
+          case "latest":
+            diff = compareVersion(a.latest, b.latest);
+            break;
+          case "assessment":
+            diff = (SEVERITY_ORDER[a.risk_level] ?? 99) - (SEVERITY_ORDER[b.risk_level] ?? 99);
+            break;
+          case "dryrun":
+            diff = (DRYRUN_ORDER[a.dryrun_status] ?? 99) - (DRYRUN_ORDER[b.dryrun_status] ?? 99);
+            break;
+        }
+        if (diff !== 0) return diff * dir;
+        return a.name.localeCompare(b.name);
+      }
+
+      function updateHeaders(table) {
+        table.querySelectorAll("th.sortable").forEach(th => {
+          const indicator = th.querySelector(".sort-indicator");
+          if (th.dataset.col === sortCol) {
+            indicator.textContent = sortDir === 1 ? "▲" : "▼";
+          } else {
+            indicator.textContent = "";
+          }
+        });
+      }
+
+      function renderTable() {
+        components.sort(compareRows);
+        const rows = components.map(c => {
+          const latestLink = formatLink(c.link_template, c.latest);
+          const latestCell = latestLink
+            ? \`<a href="\${escapeHtml(latestLink)}" target="_blank" rel="noopener">\${escapeHtml(c.latest)}</a>\`
+            : escapeHtml(c.latest);
+          const badgeClass = \`badge-\${c.risk_level}\`;
+          const dryrunClass = c.dryrun_status === "none" ? "badge-dryrun-none" : \`badge-dryrun-\${c.dryrun_status}\`;
+          return \`
+            <tr>
+              <td>
+                <div class="component-name">\${escapeHtml(c.name)}</div>
+                <div class="namespace">\${escapeHtml(c.namespace)}</div>
+              </td>
+              <td class="version current">\${escapeHtml(c.current)}</td>
+              <td class="version latest">\${latestCell}</td>
+              <td>
+                <span class="badge \${badgeClass}"><span aria-hidden="true">\${ASSESSMENT_EMOJI[c.risk_level] || "❓"}</span> \${escapeHtml(c.risk_level)}</span>
+                \${c.risk_reason ? \`<div class="reason">\${escapeHtml(c.risk_reason)}</div>\` : ""}
+              </td>
+              <td>
+                <span class="badge \${dryrunClass}"><span aria-hidden="true">\${DRYRUN_EMOJI[c.dryrun_status] || "—"}</span> \${escapeHtml(c.dryrun_status)}</span>
+                \${c.dryrun_status !== "none" ? \`<div class="reason"><a href="/api/v1/dryruns?namespace=\${encodeURIComponent(c.dryrun_namespace)}" target="_blank" rel="noopener">show output</a></div>\` : ""}
+              </td>
+            </tr>
+          \`;
+        }).join("");
+
+        content.innerHTML = \`
+          <table role="table" aria-label="RADAR component overview">
+            <thead>
+              <tr>
+                <th scope="col" class="sortable" data-col="component">Component<span class="sort-indicator"></span></th>
+                <th scope="col" class="sortable" data-col="current">Current<span class="sort-indicator"></span></th>
+                <th scope="col" class="sortable" data-col="latest">Latest<span class="sort-indicator"></span></th>
+                <th scope="col" class="sortable" data-col="assessment">Assessment<span class="sort-indicator"></span></th>
+                <th scope="col" class="sortable" data-col="dryrun">Dry-run<span class="sort-indicator"></span></th>
+              </tr>
+            </thead>
+            <tbody>\${rows}</tbody>
+          </table>
+        \`;
+
+        const table = content.querySelector("table");
+        updateHeaders(table);
+        table.querySelectorAll("th.sortable").forEach(th => {
+          th.addEventListener("click", () => {
+            const col = th.dataset.col;
+            if (col === sortCol) {
+              sortDir = -sortDir;
+            } else {
+              sortCol = col;
+              sortDir = 1;
+            }
+            renderTable();
+          });
+        });
+      }
 
       const counts = { breaking: 0, update_available: 0, dryrun_success: 0, total: components.length };
       for (const c of components) {
@@ -369,47 +513,7 @@ const html = `<!DOCTYPE html>
         <div class="stat"><div class="stat-value">\${counts.dryrun_success}</div><div class="stat-label">Dry-run Successes</div></div>
       \`;
 
-      const rows = components.map(c => {
-        const latestLink = formatLink(c.link_template, c.latest);
-        const latestCell = latestLink
-          ? \`<a href="\${escapeHtml(latestLink)}" target="_blank" rel="noopener">\${escapeHtml(c.latest)}</a>\`
-          : escapeHtml(c.latest);
-        const badgeClass = \`badge-\${c.risk_level}\`;
-        const dryrunClass = c.dryrun_status === "none" ? "badge-dryrun-none" : \`badge-dryrun-\${c.dryrun_status}\`;
-        return \`
-          <tr>
-            <td>
-              <div class="component-name">\${escapeHtml(c.name)}</div>
-              <div class="namespace">\${escapeHtml(c.namespace)}</div>
-            </td>
-            <td class="version current">\${escapeHtml(c.current)}</td>
-            <td class="version latest">\${latestCell}</td>
-            <td>
-              <span class="badge \${badgeClass}"><span aria-hidden="true">\${ASSESSMENT_EMOJI[c.risk_level] || "❓"}</span> \${escapeHtml(c.risk_level)}</span>
-              \${c.risk_reason ? \`<div class="reason">\${escapeHtml(c.risk_reason)}</div>\` : ""}
-            </td>
-            <td>
-              <span class="badge \${dryrunClass}"><span aria-hidden="true">\${DRYRUN_EMOJI[c.dryrun_status] || "—"}</span> \${escapeHtml(c.dryrun_status)}</span>
-              \${c.dryrun_status !== "none" ? \`<div class="reason"><a href="/api/v1/dryruns?namespace=\${encodeURIComponent(c.dryrun_namespace)}" target="_blank" rel="noopener">show output</a></div>\` : ""}
-            </td>
-          </tr>
-        \`;
-      }).join("");
-
-      content.innerHTML = \`
-        <table role="table" aria-label="RADAR component overview">
-          <thead>
-            <tr>
-              <th scope="col">Component</th>
-              <th scope="col">Current</th>
-              <th scope="col">Latest</th>
-              <th scope="col">Assessment</th>
-              <th scope="col">Dry-run</th>
-            </tr>
-          </thead>
-          <tbody>\${rows}</tbody>
-        </table>
-      \`;
+      renderTable();
 
       const timestamps = [
         inventory?.generated_at,
