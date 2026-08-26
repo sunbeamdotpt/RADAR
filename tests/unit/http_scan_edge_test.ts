@@ -7,7 +7,7 @@ import { join } from "jsr:@std/path@^1";
 // --- FetchHttpClient against a real local server ---
 
 async function withServer(
-  handler: (req: Request) => Response,
+  handler: (req: Request) => Response | Promise<Response>,
   fn: (base: string) => Promise<void>,
 ): Promise<void> {
   const server = Deno.serve({ hostname: "127.0.0.1", port: 0 }, handler);
@@ -124,4 +124,56 @@ Deno.test("scanBaseManifests tolerates unparsable kustomization.yaml", async () 
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+Deno.test("FetchHttpClient retries on timeout and reports it clearly", async () => {
+  let calls = 0;
+  await withServer(
+    () => {
+      calls++;
+      // Hang longer than the timeout on the first call, succeed on retry.
+      if (calls === 1) {
+        return new Promise<Response>((resolve) => {
+          setTimeout(() => resolve(new Response("too late")), 50);
+        });
+      }
+      return Response.json({ ok: true });
+    },
+    async (base) => {
+      const http = new FetchHttpClient(10, 1);
+      const data = await http.json(`${base}/slow`) as Record<string, unknown>;
+      assertEquals(data.ok, true);
+      assertEquals(calls, 2);
+    },
+  );
+});
+
+Deno.test("FetchHttpClient retries on 5xx and eventually fails", async () => {
+  let calls = 0;
+  await withServer(
+    () => {
+      calls++;
+      return new Response("boom", { status: 503 });
+    },
+    async (base) => {
+      const http = new FetchHttpClient(10_000, 1);
+      await assertRejects(() => http.json(`${base}/error`), Error, "HTTP 503");
+      assertEquals(calls, 2);
+    },
+  );
+});
+
+Deno.test("FetchHttpClient does not retry 4xx", async () => {
+  let calls = 0;
+  await withServer(
+    () => {
+      calls++;
+      return new Response("not found", { status: 404 });
+    },
+    async (base) => {
+      const http = new FetchHttpClient(10_000, 1);
+      await assertRejects(() => http.json(`${base}/missing`), Error, "HTTP 404");
+      assertEquals(calls, 1);
+    },
+  );
 });

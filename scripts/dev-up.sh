@@ -39,6 +39,8 @@ done
 echo "building api image..."
 docker build -q -f "$ROOT/docker/api.Dockerfile" -t sunbeam-radar-api:dev "$ROOT" >/dev/null
 
+# Always recreate the API container so code changes are reflected immediately.
+echo "restarting api container..."
 docker rm -f "$API_CONTAINER" >/dev/null 2>&1 || true
 docker run -d \
   --name "$API_CONTAINER" \

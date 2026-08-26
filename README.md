@@ -62,6 +62,8 @@ the data model and [docs/API.md](docs/API.md) for endpoints.
 | `GITHUB_TOKEN`              | —                                            | GitHub API auth (avoids rate limits)                                            |
 | `RADAR_OFFLINE`             | `false`                                      | Force all fetches to fail → previous-state fallback (test harness)              |
 | `RADAR_AUTO_DETECT`         | `false`                                      | Append components discovered in the git base that aren't tracked yet            |
+| `RADAR_FETCH_TIMEOUT_MS`    | `20000`                                      | Per-fetch timeout; retries count as fresh attempts                              |
+| `RADAR_FETCH_RETRIES`       | `1`                                          | Number of retries for timeout/5xx/transport errors (4xx is not retried)         |
 | `RADAR_HOST` / `PORT`       | `0.0.0.0` / `8080`                           | API bind address                                                                |
 | `RADAR_ASSESS_UPDATES_ONLY` | `false`                                      | Assess only components with `update_available`                                  |
 | `RADAR_ASSESS_JSON_PATH`    | `./data/component-versions.assessments.json` | Dev JSON assessment store; also a mirror when `STORAGE=postgres`                |
