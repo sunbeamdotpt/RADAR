@@ -228,22 +228,18 @@ Deno.test("formatGeneratedAtUtc matches strftime '%Y-%m-%d %H:%M:%S UTC'", () =>
 
 Deno.test("parseDryRun validates dry-run records", () => {
   const valid = {
-    name: "Longhorn",
-    current: "v1.11.1",
-    latest: "v1.12.0",
     namespace: "longhorn-system",
-    kustomize_path: "/tmp/base/longhorn",
+    components: ["Longhorn"],
     status: "success",
     stdout: "service/longhorn created (dry-run)",
     stderr: "",
     duration_ms: 1234,
-    mutated_helm_version: "v1.12.0",
     details: { build_exit_code: 0 },
   };
   const parsed = parseDryRun(valid, 0);
-  assertEquals(parsed.name, "Longhorn");
+  assertEquals(parsed.namespace, "longhorn-system");
+  assertEquals(parsed.components, ["Longhorn"]);
   assertEquals(parsed.status, "success");
-  assertEquals(parsed.mutated_helm_version, "v1.12.0");
 
   assertThrows(() => parseDryRun({ ...valid, status: "boom" }, 0), DryRunSchemaError, "status");
   assertThrows(
@@ -266,11 +262,8 @@ Deno.test("parseDryRunReport validates the envelope", () => {
     inventory_generated_at: "2026-08-21 11:00:00 UTC",
     assessment_generated_at: "2026-08-21 11:30:00 UTC",
     dry_runs: [{
-      name: "Longhorn",
-      current: "v1.11.1",
-      latest: "v1.12.0",
       namespace: "longhorn-system",
-      kustomize_path: "/tmp/base/longhorn",
+      components: ["Longhorn"],
       status: "success",
       stdout: "",
       stderr: "",

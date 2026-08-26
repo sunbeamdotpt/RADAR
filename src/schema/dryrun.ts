@@ -1,5 +1,10 @@
 /**
  * Strict schema for server-side dry-run preview reports (pipeline step 3 output).
+ *
+ * Dry-runs are grouped by Kubernetes namespace: Sunbeam renders the namespace
+ * with bumped Helm chart versions, then kubectl validates the result with a
+ * server-side dry-run. Each record captures the outcome for every component
+ * that was bumped in that namespace.
  */
 
 export const DRYRUN_STATUSES = [
@@ -13,20 +18,16 @@ export const DRYRUN_STATUSES = [
 export type DryRunStatus = (typeof DRYRUN_STATUSES)[number];
 
 export interface DryRun {
-  name: string;
-  current: string;
-  latest: string;
   namespace: string;
-  kustomize_path: string;
+  /** Component names whose chart versions were bumped in this namespace dry-run. */
+  components: string[];
   status: DryRunStatus;
-  /** Captured stdout from kustomize build or kubectl dry-run. */
+  /** Captured stdout from sunbeam render or kubectl dry-run. */
   stdout: string;
-  /** Captured stderr from kustomize build or kubectl dry-run. */
+  /** Captured stderr from sunbeam render or kubectl dry-run. */
   stderr: string;
-  /** Wall-clock duration of build + dry-run in milliseconds. */
+  /** Wall-clock duration of render + dry-run in milliseconds. */
   duration_ms: number;
-  /** Helm chart version written into the temp copy, when applicable. */
-  mutated_helm_version?: string;
   /** Free-form context: command line, exit code, path, etc. */
   details: Record<string, unknown>;
 }
@@ -77,16 +78,12 @@ export function parseDryRunStatus(value: unknown, ctx: string): DryRunStatus {
 }
 
 const DRYRUN_KEYS = new Set([
-  "name",
-  "current",
-  "latest",
   "namespace",
-  "kustomize_path",
+  "components",
   "status",
   "stdout",
   "stderr",
   "duration_ms",
-  "mutated_helm_version",
   "details",
 ]);
 
@@ -98,40 +95,32 @@ export function parseDryRun(raw: unknown, index: number): DryRun {
     if (!DRYRUN_KEYS.has(key)) throw new DryRunSchemaError(`${ctx}: unknown key "${key}"`);
   }
   for (
-    const key of [
-      "name",
-      "current",
-      "latest",
-      "namespace",
-      "kustomize_path",
-      "status",
-      "stdout",
-      "stderr",
-      "duration_ms",
-    ] as const
+    const key of ["namespace", "components", "status", "stdout", "stderr", "duration_ms"] as const
   ) {
     if (raw[key] === undefined || raw[key] === null) {
       throw new DryRunSchemaError(`${ctx}: missing required key "${key}"`);
     }
   }
+  if (!Array.isArray(raw.components)) {
+    throw new DryRunSchemaError(`${ctx}: "components" must be an array`);
+  }
+  const components = raw.components.map((c, i) => {
+    if (typeof c !== "string") {
+      throw new DryRunSchemaError(`${ctx}: components[${i}] must be a string`);
+    }
+    return c;
+  });
   const details = raw.details ?? {};
   if (!isRecord(details)) throw new DryRunSchemaError(`${ctx}: "details" must be an object`);
-  const dryrun: DryRun = {
-    name: requireString(raw, "name", ctx),
-    current: requireString(raw, "current", ctx),
-    latest: requireString(raw, "latest", ctx),
+  return {
     namespace: requireString(raw, "namespace", ctx),
-    kustomize_path: requireString(raw, "kustomize_path", ctx),
+    components,
     status: parseDryRunStatus(raw.status, ctx),
     stdout: requireString(raw, "stdout", ctx),
     stderr: requireString(raw, "stderr", ctx),
     duration_ms: requireNumber(raw, "duration_ms", ctx),
     details,
   };
-  if (raw.mutated_helm_version !== undefined && raw.mutated_helm_version !== null) {
-    dryrun.mutated_helm_version = requireString(raw, "mutated_helm_version", ctx);
-  }
-  return dryrun;
 }
 
 /** Validate a stored dry-run report. */

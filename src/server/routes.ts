@@ -124,10 +124,10 @@ export function createHandler(
         }
         return json(report);
       }
-      const name = decodeURIComponent(path.slice("/api/v1/dryruns/".length));
-      const dryRun = report.dry_runs.find((d) => d.name === name);
+      const namespace = decodeURIComponent(path.slice("/api/v1/dryruns/".length));
+      const dryRun = report.dry_runs.find((d) => d.namespace === namespace);
       if (!dryRun) {
-        return json({ error: `dry-run not found: ${name}` }, 404);
+        return json({ error: `dry-run not found: ${namespace}` }, 404);
       }
       return json(dryRun);
     }

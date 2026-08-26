@@ -5,6 +5,21 @@ import { loadKustomizeHints, runDryRunPass } from "../../src/dryrun/run.ts";
 import { JsonStore } from "../../src/store/json_store.ts";
 import type { AssessmentReport } from "../../src/schema/assessment.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
+import type { HttpClient } from "../../src/sources/http.ts";
+
+function fakeIndexHttp(): HttpClient {
+  return {
+    json: () => Promise.reject(new Error("unexpected json")),
+    text: () =>
+      Promise.resolve(`
+apiVersion: v1
+entries:
+  longhorn:
+    - version: 1.12.0
+      appVersion: v1.12.0
+`),
+  };
+}
 
 async function initGitRepo(dir: string): Promise<{ url: string; ref: string }> {
   const out = await new Deno.Command("git", {
@@ -69,7 +84,7 @@ const ASSESSMENTS: AssessmentReport = {
   }],
 };
 
-Deno.test("loadKustomizeHints reads kustomize_path from seed yaml", async () => {
+Deno.test("loadKustomizeHints reads namespace from kustomize_path in seed yaml", async () => {
   const dir = await Deno.makeTempDir({ prefix: "radar-dryrun-hints-" });
   try {
     const seedPath = join(dir, "seed.yaml");
@@ -85,8 +100,8 @@ Deno.test("loadKustomizeHints reads kustomize_path from seed yaml", async () => 
 `,
     );
     const hints = await loadKustomizeHints(seedPath);
-    assertEquals(hints.get("Longhorn"), "base/longhorn");
-    assertEquals(hints.get("Missing"), undefined);
+    assertEquals(hints.get("longhorn-system"), "base/longhorn");
+    assertEquals(hints.get("missing"), undefined);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -135,9 +150,10 @@ helmCharts:
       store,
       runnerDeps: {
         buildOnly: true,
+        http: fakeIndexHttp(),
         runCommand: (argv) => {
           const [tool] = argv;
-          if (tool === "kustomize") {
+          if (tool === "sunbeam") {
             return {
               success: true,
               code: 0,
@@ -151,7 +167,8 @@ helmCharts:
     });
     assertEquals(report.dry_runs.length, 1);
     assertEquals(report.dry_runs[0].status, "success");
-    assertEquals(report.dry_runs[0].mutated_helm_version, "v1.12.0");
+    assertEquals(report.dry_runs[0].namespace, "longhorn-system");
+    assertEquals(report.dry_runs[0].components, ["Longhorn"]);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

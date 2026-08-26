@@ -172,8 +172,7 @@ export class PostgresStore implements Store, AssessmentStore, DryRunStore {
       FROM assessments WHERE run_id = ${batch.run_id}
     `;
     const rows = await this.client.queryObject<Record<string, unknown>>`
-      SELECT name, current, latest, namespace, kustomize_path, status,
-             stdout, stderr, duration_ms, mutated_helm_version, details
+      SELECT namespace, components, status, stdout, stderr, duration_ms, details
       FROM dry_runs WHERE run_id = ${batch.run_id} ORDER BY position
     `;
     const dryRuns: DryRun[] = rows.rows.map((row, i) => parseDryRun(row, i));
@@ -203,13 +202,11 @@ export class PostgresStore implements Store, AssessmentStore, DryRunStore {
       for (const [position, d] of report.dry_runs.entries()) {
         await this.client.queryArray`
           INSERT INTO dry_runs (
-            run_id, dry_run_at, position, name, current, latest, namespace,
-            kustomize_path, status, stdout, stderr, duration_ms,
-            mutated_helm_version, details
+            run_id, dry_run_at, position, namespace, components,
+            status, stdout, stderr, duration_ms, details
           ) VALUES (
-            ${run.id}, ${dryRunAt}, ${position}, ${d.name}, ${d.current}, ${d.latest},
-            ${d.namespace}, ${d.kustomize_path}, ${d.status}, ${d.stdout}, ${d.stderr},
-            ${d.duration_ms}, ${d.mutated_helm_version ?? null}, ${JSON.stringify(d.details)}
+            ${run.id}, ${dryRunAt}, ${position}, ${d.namespace}, ${JSON.stringify(d.components)},
+            ${d.status}, ${d.stdout}, ${d.stderr}, ${d.duration_ms}, ${JSON.stringify(d.details)}
           )
         `;
       }

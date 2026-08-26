@@ -11,16 +11,12 @@ const DRY_RUNS: DryRunReport = {
   assessment_generated_at: "2026-08-25 13:00:00 UTC",
   dry_runs: [
     {
-      name: "Longhorn",
-      current: "v1.11.1",
-      latest: "v1.12.0",
       namespace: "longhorn-system",
-      kustomize_path: "/tmp/base/longhorn",
+      components: ["Longhorn"],
       status: "success",
       stdout: "created (dry-run)",
       stderr: "",
       duration_ms: 1234,
-      mutated_helm_version: "v1.12.0",
       details: {},
     },
   ],
@@ -38,7 +34,8 @@ Deno.test("JsonStore round-trips dry-run reports", async () => {
     const loaded = await store.loadLatestDryRuns();
     assertEquals(loaded?.generated_at, "2026-08-25 14:00:00 UTC");
     assertEquals(loaded?.dry_runs.length, 1);
-    assertEquals(loaded?.dry_runs[0].name, "Longhorn");
+    assertEquals(loaded?.dry_runs[0].namespace, "longhorn-system");
+    assertEquals(loaded?.dry_runs[0].components, ["Longhorn"]);
     assertEquals(loaded?.dry_runs[0].status, "success");
   } finally {
     await Deno.remove(dir, { recursive: true });

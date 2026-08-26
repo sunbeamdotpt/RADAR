@@ -20,6 +20,53 @@ function appVersion(entry: HelmEntry): string {
   return "n/a";
 }
 
+interface ChartIndex {
+  entries?: Record<string, unknown>;
+}
+
+function parseChartEntries(upstream: string, index: ChartIndex | null): HelmEntry[] {
+  const sep = upstream.indexOf("::");
+  if (sep === -1) return [];
+  const chartName = upstream.slice(sep + 2);
+  const entries = index?.entries ?? {};
+  const chartEntries = entries[chartName];
+  return Array.isArray(chartEntries) ? chartEntries as HelmEntry[] : [];
+}
+
+function repoIndexUrl(upstream: string): string {
+  const sep = upstream.indexOf("::");
+  const repoUrl = upstream.slice(0, sep);
+  return repoUrl.endsWith("/index.yaml") ? repoUrl : repoUrl.replace(/\/+$/, "") + "/index.yaml";
+}
+
+/**
+ * Find the chart version that ships a given appVersion. Returns `null` when the
+ * target appVersion is not present in the index. When multiple chart versions
+ * ship the same appVersion, the greatest chart version is returned.
+ */
+export async function resolveChartVersion(
+  http: HttpClient,
+  upstream: string,
+  targetAppVersion: string,
+): Promise<string | null> {
+  const index = parseYaml(await http.text(repoIndexUrl(upstream))) as ChartIndex | null;
+  const entries = parseChartEntries(upstream, index);
+  if (entries.length === 0) return null;
+
+  const target = normalizeVersion(targetAppVersion);
+  let best: HelmEntry | null = null;
+  for (const entry of entries) {
+    if (normalizeVersion(appVersion(entry)) !== target) continue;
+    if (
+      !best ||
+      compareTuples(versionTuple(entryVersion(entry)), versionTuple(entryVersion(best))) > 0
+    ) {
+      best = entry;
+    }
+  }
+  return best ? entryVersion(best) : null;
+}
+
 /**
  * Latest version from a Helm repository index.yaml.
  * upstream format: "{repo_url}::{chart_name}".

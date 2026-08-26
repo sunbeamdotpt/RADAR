@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@^1";
 import { join } from "jsr:@std/path@^1";
-import { mapComponentToKustomization, slugifyComponentName } from "../../src/dryrun/mapper.ts";
+import { mapNamespaceToBase, slugifyComponentName } from "../../src/dryrun/mapper.ts";
 
 Deno.test("slugifyComponentName normalizes names to base-directory slugs", () => {
   assertEquals(slugifyComponentName("Cert-manager"), "cert-manager");
@@ -9,53 +9,7 @@ Deno.test("slugifyComponentName normalizes names to base-directory slugs", () =>
   assertEquals(slugifyComponentName("  spaced  -- name "), "spaced-name");
 });
 
-Deno.test("mapComponentToKustomization uses shorter slug variants", async () => {
-  const base = await Deno.makeTempDir({ prefix: "radar-dryrun-mapper-" });
-  try {
-    await Deno.mkdir(join(base, "base", "gateway-api"), { recursive: true });
-    await Deno.writeTextFile(
-      join(base, "base", "gateway-api", "kustomization.yaml"),
-      "kind: Kustomization",
-    );
-
-    const mapped = await mapComponentToKustomization(
-      { name: "Gateway API CRDs", namespace: "cluster" },
-      {
-        basePath: base,
-        hints: new Map(),
-      },
-    );
-    assertEquals(mapped?.path, join(base, "base", "gateway-api"));
-    assertEquals(mapped?.source, "slug_heuristic");
-  } finally {
-    await Deno.remove(base, { recursive: true });
-  }
-});
-
-Deno.test("mapComponentToKustomization prefers seed hints", async () => {
-  const base = await Deno.makeTempDir({ prefix: "radar-dryrun-mapper-" });
-  try {
-    await Deno.mkdir(join(base, "custom", "longhorn"), { recursive: true });
-    await Deno.writeTextFile(
-      join(base, "custom", "longhorn", "kustomization.yaml"),
-      "kind: Kustomization",
-    );
-
-    const mapped = await mapComponentToKustomization(
-      { name: "Longhorn", namespace: "longhorn-system" },
-      {
-        basePath: base,
-        hints: new Map([["Longhorn", "custom/longhorn"]]),
-      },
-    );
-    assertEquals(mapped?.path, join(base, "custom", "longhorn"));
-    assertEquals(mapped?.source, "seed_hint");
-  } finally {
-    await Deno.remove(base, { recursive: true });
-  }
-});
-
-Deno.test("mapComponentToKustomization prefers namespace-derived base path", async () => {
+Deno.test("mapNamespaceToBase uses base/<namespace>", async () => {
   const base = await Deno.makeTempDir({ prefix: "radar-dryrun-mapper-" });
   try {
     await Deno.mkdir(join(base, "base", "monitoring"), { recursive: true });
@@ -64,12 +18,9 @@ Deno.test("mapComponentToKustomization prefers namespace-derived base path", asy
       "kind: Kustomization",
     );
 
-    const mapped = await mapComponentToKustomization(
-      { name: "kube-prometheus-stack", namespace: "monitoring" },
-      {
-        basePath: base,
-        hints: new Map(),
-      },
+    const mapped = await mapNamespaceToBase(
+      "monitoring",
+      { basePath: base, hints: new Map() },
     );
     assertEquals(mapped?.path, join(base, "base", "monitoring"));
     assertEquals(mapped?.source, "slug_heuristic");
@@ -78,38 +29,52 @@ Deno.test("mapComponentToKustomization prefers namespace-derived base path", asy
   }
 });
 
-Deno.test("mapComponentToKustomization falls back to base/<slug>", async () => {
+Deno.test("mapNamespaceToBase prefers seed hints", async () => {
   const base = await Deno.makeTempDir({ prefix: "radar-dryrun-mapper-" });
   try {
-    await Deno.mkdir(join(base, "base", "cert-manager"), { recursive: true });
+    await Deno.mkdir(join(base, "custom", "vso"), { recursive: true });
     await Deno.writeTextFile(
-      join(base, "base", "cert-manager", "kustomization.yaml"),
+      join(base, "custom", "vso", "kustomization.yaml"),
       "kind: Kustomization",
     );
 
-    const mapped = await mapComponentToKustomization(
-      { name: "Cert-manager", namespace: "cert-manager" },
-      {
-        basePath: base,
-        hints: new Map(),
-      },
+    const mapped = await mapNamespaceToBase(
+      "vault-secrets-operator",
+      { basePath: base, hints: new Map([["vault-secrets-operator", "custom/vso"]]) },
     );
-    assertEquals(mapped?.path, join(base, "base", "cert-manager"));
+    assertEquals(mapped?.path, join(base, "custom", "vso"));
+    assertEquals(mapped?.source, "seed_hint");
+  } finally {
+    await Deno.remove(base, { recursive: true });
+  }
+});
+
+Deno.test("mapNamespaceToBase falls back to shorter slug variants", async () => {
+  const base = await Deno.makeTempDir({ prefix: "radar-dryrun-mapper-" });
+  try {
+    await Deno.mkdir(join(base, "base", "longhorn"), { recursive: true });
+    await Deno.writeTextFile(
+      join(base, "base", "longhorn", "kustomization.yaml"),
+      "kind: Kustomization",
+    );
+
+    const mapped = await mapNamespaceToBase(
+      "longhorn-system",
+      { basePath: base, hints: new Map() },
+    );
+    assertEquals(mapped?.path, join(base, "base", "longhorn"));
     assertEquals(mapped?.source, "slug_heuristic");
   } finally {
     await Deno.remove(base, { recursive: true });
   }
 });
 
-Deno.test("mapComponentToKustomization returns null when no kustomization exists", async () => {
+Deno.test("mapNamespaceToBase returns null when no kustomization exists", async () => {
   const base = await Deno.makeTempDir({ prefix: "radar-dryrun-mapper-" });
   try {
-    const mapped = await mapComponentToKustomization(
-      { name: "Missing", namespace: "missing" },
-      {
-        basePath: base,
-        hints: new Map(),
-      },
+    const mapped = await mapNamespaceToBase(
+      "missing",
+      { basePath: base, hints: new Map() },
     );
     assertEquals(mapped, null);
   } finally {
@@ -117,23 +82,20 @@ Deno.test("mapComponentToKustomization returns null when no kustomization exists
   }
 });
 
-Deno.test("mapComponentToKustomization accepts kustomization.yml", async () => {
+Deno.test("mapNamespaceToBase accepts kustomization.yml", async () => {
   const base = await Deno.makeTempDir({ prefix: "radar-dryrun-mapper-" });
   try {
-    await Deno.mkdir(join(base, "base", "gateway-api"), { recursive: true });
+    await Deno.mkdir(join(base, "base", "monitoring"), { recursive: true });
     await Deno.writeTextFile(
-      join(base, "base", "gateway-api", "kustomization.yml"),
+      join(base, "base", "monitoring", "kustomization.yml"),
       "kind: Kustomization",
     );
 
-    const mapped = await mapComponentToKustomization(
-      { name: "Gateway API CRDs", namespace: "cluster" },
-      {
-        basePath: base,
-        hints: new Map(),
-      },
+    const mapped = await mapNamespaceToBase(
+      "monitoring",
+      { basePath: base, hints: new Map() },
     );
-    assertEquals(mapped?.path, join(base, "base", "gateway-api"));
+    assertEquals(mapped?.path, join(base, "base", "monitoring"));
   } finally {
     await Deno.remove(base, { recursive: true });
   }

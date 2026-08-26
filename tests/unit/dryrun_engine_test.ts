@@ -5,6 +5,7 @@ import type { AssessmentReport } from "../../src/schema/assessment.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
 import type { DryRunReport } from "../../src/schema/dryrun.ts";
 import type { RadarStore } from "../../src/store/factory.ts";
+import type { HttpClient } from "../../src/sources/http.ts";
 
 class MemoryStore implements RadarStore {
   report: InventoryReport | null = null;
@@ -35,6 +36,23 @@ class MemoryStore implements RadarStore {
   close(): Promise<void> {
     return Promise.resolve();
   }
+}
+
+function fakeIndexHttp(): HttpClient {
+  return {
+    json: () => Promise.reject(new Error("unexpected json")),
+    text: () =>
+      Promise.resolve(`
+apiVersion: v1
+entries:
+  longhorn:
+    - version: 1.12.0
+      appVersion: v1.12.0
+  cert-manager:
+    - version: v1.20.0
+      appVersion: v1.20.0
+`),
+  };
 }
 
 const INVENTORY: InventoryReport = {
@@ -170,22 +188,24 @@ Deno.test("runDryRuns fails when no assessments exist", async () => {
   );
 });
 
-Deno.test("runDryRuns filters to likely_safe drifted helm components", async () => {
+Deno.test("runDryRuns groups likely_safe drifted helm components by namespace", async () => {
   const base = await Deno.makeTempDir({ prefix: "radar-dryrun-engine-" });
   try {
-    await Deno.mkdir(join(base, "base", "longhorn"), { recursive: true });
-    await Deno.writeTextFile(
-      join(base, "base", "longhorn", "kustomization.yaml"),
-      `apiVersion: kustomize.config.k8s.io/v1beta1
+    for (const ns of ["longhorn", "cert-manager"]) {
+      await Deno.mkdir(join(base, "base", ns), { recursive: true });
+      await Deno.writeTextFile(
+        join(base, "base", ns, "kustomization.yaml"),
+        `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 helmCharts:
-  - name: longhorn
-    repo: https://charts.longhorn.io
-    version: "1.11.1"
-    releaseName: longhorn
-    namespace: longhorn-system
+  - name: ${ns}
+    repo: https://example.test
+    version: "1.0.0"
+    releaseName: ${ns}
+    namespace: ${ns}
 `,
-    );
+      );
+    }
 
     const store = new MemoryStore();
     store.report = INVENTORY;
@@ -196,9 +216,10 @@ helmCharts:
       mapperDeps: { basePath: base, hints: new Map() },
       runnerDeps: {
         buildOnly: true,
+        http: fakeIndexHttp(),
         runCommand: (argv) => {
           const [tool] = argv;
-          if (tool === "kustomize") {
+          if (tool === "sunbeam") {
             return { success: true, code: 0, stdout: "built", stderr: "" };
           }
           return { success: true, code: 0, stdout: "", stderr: "" };
@@ -211,16 +232,19 @@ helmCharts:
     assertEquals(report.assessment_generated_at, "2026-08-25 13:00:00 UTC");
     assertEquals(report.generated_at, "2026-08-25 14:00:00 UTC");
     assertEquals(report.dry_runs.length, 2);
-    assertEquals(report.dry_runs.map((d) => d.name), ["Longhorn", "Cert-manager"]);
-    const longhorn = report.dry_runs[0];
+    assertEquals(report.dry_runs.map((d) => d.namespace).sort(), [
+      "cert-manager",
+      "longhorn-system",
+    ]);
+    const longhorn = report.dry_runs.find((d) => d.namespace === "longhorn-system")!;
     assertEquals(longhorn.status, "success");
-    assertEquals(longhorn.mutated_helm_version, "v1.12.0");
+    assertEquals(longhorn.components, ["Longhorn"]);
   } finally {
     await Deno.remove(base, { recursive: true });
   }
 });
 
-Deno.test("runDryRuns records skipped_no_mapping for unmatched components", async () => {
+Deno.test("runDryRuns records skipped_no_mapping for unmatched namespaces", async () => {
   const base = await Deno.makeTempDir({ prefix: "radar-dryrun-engine-" });
   try {
     const store = new MemoryStore();
@@ -234,7 +258,7 @@ Deno.test("runDryRuns records skipped_no_mapping for unmatched components", asyn
       now: new Date(Date.UTC(2026, 7, 25, 14)),
     });
 
-    const longhorn = report.dry_runs.find((d) => d.name === "Longhorn");
+    const longhorn = report.dry_runs.find((d) => d.namespace === "longhorn-system");
     assertEquals(longhorn?.status, "skipped_no_mapping");
   } finally {
     await Deno.remove(base, { recursive: true });

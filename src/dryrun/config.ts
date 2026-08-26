@@ -22,7 +22,11 @@ export interface DryRunConfig {
   gitBaseRef: string;
   /** Absolute path to a kubeconfig file for dev dry-runs; omitted in-cluster. */
   kubeconfig: string | undefined;
-  /** Run kustomize build but skip kubectl dry-run (useful when no cluster is reachable). */
+  /** Domain suffix for Sunbeam manifest substitution. */
+  domain: string;
+  /** ACME email passed to Sunbeam for cert-manager resources. */
+  acmeEmail: string;
+  /** Run sunbeam render but skip kubectl dry-run (useful when no cluster is reachable). */
   buildOnly: boolean;
   offline: boolean;
 }
@@ -41,6 +45,8 @@ export function loadDryRunConfig(env: Env): DryRunConfig {
     gitBaseUrl: envString(env, "GIT_BASE_URL", DEFAULT_GIT_BASE_URL),
     gitBaseRef: envString(env, "GIT_BASE_REF", DEFAULT_GIT_BASE_REF),
     kubeconfig: env.RADAR_DRYRUN_KUBECONFIG || undefined,
+    domain: envString(env, "RADAR_DOMAIN_SUFFIX", "sunbeam.pt"),
+    acmeEmail: envString(env, "RADAR_ACME_EMAIL", "radar@example.com"),
     buildOnly: envBool(env, "RADAR_DRYRUN_BUILD_ONLY", false),
     offline: envBool(env, "RADAR_OFFLINE", false),
   };

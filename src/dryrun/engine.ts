@@ -1,11 +1,12 @@
 import { formatGeneratedAtUtc } from "../domain/time.ts";
 import { log } from "../log.ts";
+import type { ComponentRecord } from "../schema/component.ts";
 import type { DryRun, DryRunReport } from "../schema/dryrun.ts";
 import type { RadarStore } from "../store/factory.ts";
 import type { MapperDeps } from "./mapper.ts";
-import { mapComponentToKustomization } from "./mapper.ts";
+import { mapNamespaceToBase } from "./mapper.ts";
 import type { RunnerDeps } from "./runner.ts";
-import { runComponentDryRun } from "./runner.ts";
+import { runNamespaceDryRun } from "./runner.ts";
 
 export interface DryRunEngineDeps {
   store: RadarStore;
@@ -16,9 +17,8 @@ export interface DryRunEngineDeps {
 
 /**
  * Run one dry-run pass: read the latest inventory + assessments, filter to
- * drifted likely-safe Helm components, map each to its kustomization base,
- * mutate the chart version to latest, and run kustomize build + kubectl
- * apply --dry-run=server.
+ * drifted likely-safe Helm components, group them by namespace, and run a
+ * namespace-level Sunbeam render + kubectl server-side dry-run for each group.
  */
 export async function runDryRuns(deps: DryRunEngineDeps): Promise<DryRunReport> {
   const inventory = await deps.store.loadPrevious();
@@ -40,35 +40,35 @@ export async function runDryRuns(deps: DryRunEngineDeps): Promise<DryRunReport> 
     riskByName.get(c.name)?.risk_level === "likely_safe"
   );
 
+  const byNamespace = groupByNamespace(candidates);
   const dryRuns: DryRun[] = [];
-  for (const component of candidates) {
-    const mapped = await mapComponentToKustomization(
-      { name: component.name, namespace: component.namespace },
-      deps.mapperDeps,
-    );
+
+  for (const [namespace, components] of byNamespace.entries()) {
+    const mapped = await mapNamespaceToBase(namespace, deps.mapperDeps);
     if (!mapped) {
       dryRuns.push({
-        name: component.name,
-        current: component.current,
-        latest: component.latest,
-        namespace: component.namespace,
-        kustomize_path: "",
+        namespace,
+        components: components.map((c) => c.name),
         status: "skipped_no_mapping",
         stdout: "",
-        stderr: `no kustomization base found for "${component.name}"`,
+        stderr: `no kustomization base found for namespace "${namespace}"`,
         duration_ms: 0,
         details: {},
       });
       continue;
     }
 
-    const dryRun = await runComponentDryRun(component, mapped, deps.runnerDeps);
+    const dryRun = await runNamespaceDryRun(
+      { namespace, namespaceBase: mapped.path, components },
+      deps.runnerDeps,
+    );
     dryRuns.push(dryRun);
   }
 
   const counts: Record<string, number> = {};
   for (const d of dryRuns) counts[d.status] = (counts[d.status] ?? 0) + 1;
   log("info", "dry-run pass complete", {
+    namespaces: byNamespace.size,
     candidates: candidates.length,
     ...counts,
   });
@@ -79,4 +79,14 @@ export async function runDryRuns(deps: DryRunEngineDeps): Promise<DryRunReport> 
     assessment_generated_at: assessments.generated_at,
     dry_runs: dryRuns,
   };
+}
+
+function groupByNamespace(components: ComponentRecord[]): Map<string, ComponentRecord[]> {
+  const map = new Map<string, ComponentRecord[]>();
+  for (const c of components) {
+    const list = map.get(c.namespace) ?? [];
+    list.push(c);
+    map.set(c.namespace, list);
+  }
+  return map;
 }

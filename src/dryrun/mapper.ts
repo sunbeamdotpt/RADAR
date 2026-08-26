@@ -18,7 +18,7 @@ export function slugifyComponentName(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
-/** Possible result of mapping a component to its kustomization directory. */
+/** Possible result of mapping a namespace to its kustomization directory. */
 export interface MappedPath {
   /** Absolute path to the directory containing kustomization.yaml. */
   path: string;
@@ -26,17 +26,12 @@ export interface MappedPath {
   source: string;
 }
 
-export interface MapperComponent {
-  name: string;
-  namespace: string;
-}
-
-/** Find the kustomization directory for a component, or null if none exists. */
-export async function mapComponentToKustomization(
-  component: MapperComponent,
+/** Find the kustomization directory for a namespace, or null if none exists. */
+export async function mapNamespaceToBase(
+  namespace: string,
   deps: MapperDeps,
 ): Promise<MappedPath | null> {
-  const hinted = deps.hints.get(component.name);
+  const hinted = deps.hints.get(namespace);
   if (hinted) {
     const hintedPath = join(deps.basePath, hinted);
     if (await hasKustomization(hintedPath)) {
@@ -44,16 +39,11 @@ export async function mapComponentToKustomization(
     }
   }
 
-  const nameSlug = slugifyComponentName(component.name);
-  const nsSlug = slugifyComponentName(component.namespace);
-  const slugs = [nameSlug, ...shorterSlugVariants(nameSlug)];
-  const nsSlugs = [nsSlug, ...shorterSlugVariants(nsSlug)];
-
-  // The sbbb repo lays out base directories by namespace (e.g. base/monitoring,
-  // base/cert-manager), so prefer namespace-derived paths.
+  const nsSlug = slugifyComponentName(namespace);
   const candidates = [
-    ...nsSlugs.flatMap((s) => [join(deps.basePath, "base", s), join(deps.basePath, s)]),
-    ...slugs.flatMap((s) => [join(deps.basePath, "base", s), join(deps.basePath, s)]),
+    join(deps.basePath, "base", nsSlug),
+    join(deps.basePath, nsSlug),
+    ...shorterSlugVariants(nsSlug).map((s) => join(deps.basePath, "base", s)),
   ];
   for (const candidate of candidates) {
     if (await hasKustomization(candidate)) {
@@ -63,7 +53,7 @@ export async function mapComponentToKustomization(
   return null;
 }
 
-/** Drop trailing slug segments to handle names like "Gateway API CRDs" → gateway-api. */
+/** Drop trailing slug segments to handle names like "longhorn-system" → longhorn. */
 function shorterSlugVariants(slug: string): string[] {
   const parts = slug.split("-");
   const variants: string[] = [];

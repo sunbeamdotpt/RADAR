@@ -189,29 +189,21 @@ const DRY_RUNS: DryRunReport = {
   assessment_generated_at: "2026-08-21 13:00:00 UTC",
   dry_runs: [
     {
-      name: "Longhorn",
-      current: "v1.11.1",
-      latest: "v1.12.0",
       namespace: "longhorn-system",
-      kustomize_path: "/tmp/base/longhorn",
+      components: ["Longhorn"],
       status: "success",
       stdout: "created (dry-run)",
       stderr: "",
       duration_ms: 1234,
-      mutated_helm_version: "v1.12.0",
       details: {},
     },
     {
-      name: "Cert-manager",
-      current: "v1.19.4",
-      latest: "v1.20.0",
       namespace: "cert-manager",
-      kustomize_path: "/tmp/base/cert-manager",
+      components: ["Cert-manager"],
       status: "dryrun_failed",
       stdout: "",
       stderr: "no matches for kind Issuer",
       duration_ms: 567,
-      mutated_helm_version: "v1.20.0",
       details: { kubectl_exit_code: 1 },
     },
   ],
@@ -244,14 +236,14 @@ Deno.test("assessments are served, filterable, and addressable by name", async (
 
 Deno.test("dry-run endpoints 404 before the first dry-run job", async () => {
   const handler = createHandler(new StubStore(REPORT));
-  for (const path of ["/api/v1/dryruns", "/api/v1/dryruns/Longhorn"]) {
+  for (const path of ["/api/v1/dryruns", "/api/v1/dryruns/longhorn-system"]) {
     const res = await get(handler, path);
     assertEquals(res.status, 404, path);
     assertEquals((await res.json()).error, "no dry-runs yet — run the radar dry-run job first");
   }
 });
 
-Deno.test("dry-runs are served, filterable, and addressable by name", async () => {
+Deno.test("dry-runs are served, filterable, and addressable by namespace", async () => {
   const store = new StubStore(REPORT);
   store.dryRuns = DRY_RUNS;
   const handler = createHandler(store);
@@ -262,12 +254,14 @@ Deno.test("dry-runs are served, filterable, and addressable by name", async () =
   assertEquals(all.assessment_generated_at, "2026-08-21 13:00:00 UTC");
 
   const successes = await (await get(handler, "/api/v1/dryruns?status=success")).json();
-  assertEquals(successes.dry_runs.map((d: { name: string }) => d.name), ["Longhorn"]);
+  assertEquals(successes.dry_runs.map((d: { namespace: string }) => d.namespace), [
+    "longhorn-system",
+  ]);
 
   const bad = await get(handler, "/api/v1/dryruns?status=spicy");
   assertEquals(bad.status, 400);
 
-  const one = await (await get(handler, "/api/v1/dryruns/Cert-manager")).json();
+  const one = await (await get(handler, "/api/v1/dryruns/cert-manager")).json();
   assertEquals(one.status, "dryrun_failed");
 
   const missing = await get(handler, "/api/v1/dryruns/Nope");

@@ -1,17 +1,21 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "@std/yaml";
-import { join } from "jsr:@std/path@^1";
+import { basename, join } from "jsr:@std/path@^1";
 import type { ComponentRecord } from "../schema/component.ts";
 import type { DryRun, DryRunStatus } from "../schema/dryrun.ts";
-import type { MappedPath } from "./mapper.ts";
+import { resolveChartVersion } from "../sources/helm_chart.ts";
+import type { HttpClient } from "../sources/http.ts";
 
 export interface RunnerDeps {
   kubeconfig?: string;
-  /** Skip kubectl and only run kustomize build. */
+  domain?: string;
+  acmeEmail?: string;
+  /** Skip kubectl and only run sunbeam render. */
   buildOnly: boolean;
+  /** Optional HTTP client; required to map appVersions back to chart versions. */
+  http?: HttpClient;
   /**
    * Command executor override. Defaults to Deno.Command.
-   * Every argv passed here is guaranteed to contain `--dry-run=server` when kubectl is used.
-   * For kubectl, stdin carries the rendered manifest stream from kustomize build.
+   * Every kubectl argv passed here is guaranteed to contain `--dry-run=server`.
    */
   runCommand?: (argv: string[], stdin?: string) => Promise<CommandResult> | CommandResult;
 }
@@ -23,107 +27,239 @@ export interface CommandResult {
   code: number;
 }
 
-/** Run kustomize build + kubectl apply --dry-run=server for one component. */
-export async function runComponentDryRun(
-  component: ComponentRecord,
-  mapped: MappedPath,
+export interface NamespaceDryRunInput {
+  namespace: string;
+  /** Absolute path to the namespace base directory (contains kustomization.yaml). */
+  namespaceBase: string;
+  components: ComponentRecord[];
+}
+
+/**
+ * Run a namespace-level dry-run: create a minimal overlay pointing at the
+ * namespace base, bump Helm chart versions to their latest values, render with
+ * `sunbeam service apply <namespace> --dry-run`, then validate with
+ * `kubectl apply --server-side --force-conflicts --dry-run=server`.
+ */
+export async function runNamespaceDryRun(
+  input: NamespaceDryRunInput,
   deps: RunnerDeps,
 ): Promise<DryRun> {
   const start = Date.now();
+  const { namespace, namespaceBase, components } = input;
   const details: Record<string, unknown> = {
-    mapped_path: mapped.path,
-    mapped_source: mapped.source,
+    namespace_base: namespaceBase,
+    namespace,
+    component_count: components.length,
   };
 
-  if (component.source !== "helm_chart") {
+  if (components.length === 0) {
     return skipped(
-      component,
-      mapped,
-      "skipped_unsupported_source",
-      `source "${component.source}" does not support deterministic manifest mutation`,
+      namespace,
+      [],
+      "skipped_no_mapping",
+      "no components selected for namespace dry-run",
       start,
       details,
     );
   }
 
-  const chartName = extractHelmChartName(component.upstream);
-  if (!chartName) {
+  const unsupported = components.filter((c) => c.source !== "helm_chart");
+  if (unsupported.length > 0) {
     return skipped(
-      component,
-      mapped,
+      namespace,
+      components.map((c) => c.name),
       "skipped_unsupported_source",
-      `could not derive helm chart name from upstream "${component.upstream}"`,
+      `components ${unsupported.map((c) => c.name).join(", ")} are not helm_chart sources`,
       start,
       details,
     );
   }
-  details.chart_name = chartName;
+
+  if (!await hasKustomization(namespaceBase)) {
+    return skipped(
+      namespace,
+      components.map((c) => c.name),
+      "skipped_no_mapping",
+      `no kustomization base found at ${namespaceBase}`,
+      start,
+      details,
+    );
+  }
 
   const workDir = await Deno.makeTempDir({ prefix: "radar-dryrun-" });
   try {
-    await copyDir(mapped.path, workDir);
     details.work_dir = workDir;
 
-    const mutatedVersion = await mutateHelmChartVersion(workDir, chartName, component.latest);
-    if (mutatedVersion === null) {
+    const copiedNamespace = basename(namespaceBase);
+    await copyKustomizationBase(namespaceBase, workDir);
+
+    // Build a minimal infra dir with a single-namespace overlay. This avoids
+    // pulling in unrelated bases (e.g. stalwart's encrypted configs) that
+    // Sunbeam's unified overlay would otherwise include. The resource path
+    // uses the copied base directory name, which can differ from the
+    // Kubernetes namespace when seed hints remap it.
+    await prepareNamespaceOverlay(workDir, namespace, copiedNamespace);
+
+    const mutated = await mutateHelmChartVersions(
+      join(workDir, "base", copiedNamespace),
+      components,
+      deps,
+      details,
+    );
+    details.mutated_versions = mutated;
+    if (Object.keys(mutated).length === 0) {
       return skipped(
-        component,
-        mapped,
+        namespace,
+        components.map((c) => c.name),
         "skipped_no_mapping",
-        `no helm chart named "${chartName}" in ${mapped.path}`,
+        "no matching helm charts found in namespace base",
         start,
         details,
       );
     }
-    details.mutated = true;
 
-    const build = await runCommand(["kustomize", "build", "--enable-helm", workDir], deps);
-    details.build_exit_code = build.code;
-    if (!build.success) {
+    const sunbeamContextDir = join(workDir, ".sunbeam");
+    await writeSunbeamContext(sunbeamContextDir, workDir, deps);
+
+    const render = await runSunbeamRender(namespace, workDir, deps);
+    details.sunbeam_exit_code = render.code;
+    if (!render.success) {
       return result(
-        component,
-        mapped,
+        namespace,
+        components.map((c) => c.name),
         "build_failed",
-        build.stdout,
-        build.stderr,
+        render.stdout,
+        render.stderr,
         Date.now() - start,
-        mutatedVersion,
         details,
       );
     }
 
     if (deps.buildOnly) {
       return result(
-        component,
-        mapped,
+        namespace,
+        components.map((c) => c.name),
         "success",
-        build.stdout,
+        render.stdout,
         "",
         Date.now() - start,
-        mutatedVersion,
         { ...details, build_only: true },
       );
     }
 
-    const kubectl = await runCommandWithStdin(
-      kubectlArgv(deps.kubeconfig),
-      build.stdout,
-      deps,
-    );
+    const renderedPath = join(workDir, "rendered.yaml");
+    await Deno.writeTextFile(renderedPath, render.stdout);
+
+    const kubectl = await runKubectlDryRun(renderedPath, deps);
     details.kubectl_exit_code = kubectl.code;
     return result(
-      component,
-      mapped,
+      namespace,
+      components.map((c) => c.name),
       kubectl.success ? "success" : "dryrun_failed",
       kubectl.stdout,
       kubectl.stderr,
       Date.now() - start,
-      mutatedVersion,
       details,
     );
   } finally {
     await Deno.remove(workDir, { recursive: true }).catch(() => {});
   }
+}
+
+async function prepareNamespaceOverlay(
+  workDir: string,
+  namespace: string,
+  baseName: string,
+): Promise<void> {
+  const overlayDir = join(workDir, "overlays");
+  await Deno.mkdir(overlayDir, { recursive: true });
+  await Deno.writeTextFile(
+    join(overlayDir, "kustomization.yaml"),
+    stringifyYaml({
+      apiVersion: "kustomize.config.k8s.io/v1beta1",
+      kind: "Kustomization",
+      namespace,
+      resources: [`../base/${baseName}`],
+    }, { lineWidth: 0 }),
+  );
+}
+
+async function copyKustomizationBase(
+  namespaceBase: string,
+  workDir: string,
+): Promise<void> {
+  const namespace = basename(namespaceBase);
+  const dest = join(workDir, "base", namespace);
+  await copyDir(namespaceBase, dest);
+}
+
+async function mutateHelmChartVersions(
+  namespaceBase: string,
+  components: ComponentRecord[],
+  deps: RunnerDeps,
+  details: Record<string, unknown>,
+): Promise<Record<string, string>> {
+  const kustomizationPath = join(namespaceBase, "kustomization.yaml");
+  let text: string;
+  try {
+    text = await Deno.readTextFile(kustomizationPath);
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) return {};
+    throw err;
+  }
+
+  const doc = parseYaml(text) as Record<string, unknown>;
+  const charts = Array.isArray(doc.helmCharts) ? doc.helmCharts : [];
+  const mutated: Record<string, string> = {};
+  const unresolved: Record<string, string> = {};
+  const byUpstream = new Map<string, ComponentRecord>();
+  for (const c of components) {
+    const chartName = extractHelmChartName(c.upstream);
+    if (chartName) byUpstream.set(chartName, c);
+  }
+
+  for (const chart of charts) {
+    if (!isRecord(chart) || typeof chart.name !== "string") continue;
+    const component = byUpstream.get(chart.name);
+    if (!component) continue;
+    const newVersion = await resolveTargetVersion(component, deps.http, unresolved);
+    if (newVersion) {
+      chart.version = newVersion;
+      mutated[component.name] = newVersion;
+    }
+  }
+
+  if (Object.keys(unresolved).length > 0) {
+    details.unresolved_components = unresolved;
+  }
+  if (Object.keys(mutated).length > 0) {
+    await Deno.writeTextFile(kustomizationPath, stringifyYaml(doc, { lineWidth: 0 }));
+  }
+  return mutated;
+}
+
+async function resolveTargetVersion(
+  component: ComponentRecord,
+  http: HttpClient | undefined,
+  unresolved: Record<string, string>,
+): Promise<string | null> {
+  if (!component.latest || component.latest === "n/a" || component.latest === "unknown") {
+    unresolved[component.name] = "missing latest version";
+    return null;
+  }
+  if (!component.track_app_version) {
+    return component.latest;
+  }
+  if (!http) {
+    unresolved[component.name] = "track_app_version requires an HTTP client (offline?)";
+    return null;
+  }
+  const chartVersion = await resolveChartVersion(http, component.upstream, component.latest);
+  if (!chartVersion) {
+    unresolved[component.name] = `could not map appVersion ${component.latest} to a chart version`;
+    return null;
+  }
+  return chartVersion;
 }
 
 function extractHelmChartName(upstream: string): string | null {
@@ -135,39 +271,102 @@ function extractHelmChartName(upstream: string): string | null {
   return null;
 }
 
-async function mutateHelmChartVersion(
-  dir: string,
-  chartName: string,
-  latest: string,
-): Promise<string | null> {
-  const kustomizationPath = join(dir, "kustomization.yaml");
-  let text: string;
-  try {
-    text = await Deno.readTextFile(kustomizationPath);
-  } catch (err) {
-    if (err instanceof Deno.errors.NotFound) return null;
-    throw err;
-  }
+async function writeSunbeamContext(
+  contextDir: string,
+  infraDir: string,
+  deps: RunnerDeps,
+): Promise<void> {
+  await Deno.mkdir(contextDir, { recursive: true });
+  const context = {
+    "current-context": "radar-dryrun",
+    "contexts": {
+      "radar-dryrun": {
+        "infra-dir": infraDir,
+        "domain": deps.domain ?? "sunbeam.pt",
+        "acme-email": deps.acmeEmail ?? "radar@example.com",
+        "kube-context": "",
+      },
+    },
+  };
+  await Deno.writeTextFile(join(contextDir, "config.json"), JSON.stringify(context, null, 2));
+}
 
-  const doc = parseYaml(text) as Record<string, unknown>;
-  const charts = Array.isArray(doc.helmCharts) ? doc.helmCharts : [];
-  let mutated = false;
-  for (const chart of charts) {
-    if (
-      isRecord(chart) && typeof chart.name === "string" && chart.name === chartName
-    ) {
-      chart.version = latest;
-      mutated = true;
-    }
-  }
-  if (!mutated) return null;
+async function runSunbeamRender(
+  namespace: string,
+  homeDir: string,
+  deps: RunnerDeps,
+): Promise<CommandResult> {
+  const argv = ["sunbeam", "service", "apply", namespace, "--dry-run", "--quiet"];
+  const env: Record<string, string> = { HOME: homeDir };
+  if (deps.kubeconfig) env.KUBECONFIG = deps.kubeconfig;
+  return await runCommand(argv, deps, env);
+}
 
-  await Deno.writeTextFile(kustomizationPath, stringifyYaml(doc, { lineWidth: 0 }));
-  return latest;
+async function runKubectlDryRun(renderedPath: string, deps: RunnerDeps): Promise<CommandResult> {
+  const argv = [
+    "kubectl",
+    "apply",
+    "--server-side",
+    "--force-conflicts",
+    "--dry-run=server",
+    "-f",
+    renderedPath,
+  ];
+  if (deps.kubeconfig) argv.push("--kubeconfig", deps.kubeconfig);
+  guardDryRun(argv);
+  return await runCommand(argv, deps);
+}
+
+async function runCommand(
+  argv: string[],
+  deps: RunnerDeps,
+  env?: Record<string, string>,
+): Promise<CommandResult> {
+  if (deps.runCommand) return deps.runCommand(argv);
+  const cmdEnv = env ? { ...Deno.env.toObject(), ...env } : undefined;
+  const cmd = new Deno.Command(argv[0], {
+    args: argv.slice(1),
+    stdout: "piped",
+    stderr: "piped",
+    env: cmdEnv,
+  });
+  const out = await cmd.output();
+  return {
+    success: out.success,
+    code: out.code,
+    stdout: new TextDecoder().decode(out.stdout),
+    stderr: new TextDecoder().decode(out.stderr),
+  };
+}
+
+/**
+ * Safety guard: refuse to execute any kubectl command that does not contain
+ * `--dry-run=server`. This is the single point that protects against accidental
+ * cluster mutations.
+ */
+export function guardDryRun(argv: string[]): void {
+  if (argv[0] !== "kubectl") return;
+  if (!argv.includes("--dry-run=server")) {
+    throw new Error(
+      `refusing to execute kubectl without --dry-run=server: ${argv.join(" ")}`,
+    );
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function hasKustomization(dir: string): Promise<boolean> {
+  for (const name of ["kustomization.yaml", "kustomization.yml"]) {
+    try {
+      const info = await Deno.stat(join(dir, name));
+      if (info.isFile) return true;
+    } catch {
+      // ignore
+    }
+  }
+  return false;
 }
 
 /** Simple recursive directory copy using only Deno built-ins. */
@@ -187,101 +386,33 @@ async function copyDir(src: string, dest: string): Promise<void> {
   }
 }
 
-function kubectlArgv(kubeconfig?: string): string[] {
-  const argv = ["kubectl", "apply", "--dry-run=server", "-f", "-"];
-  if (kubeconfig) {
-    argv.push("--kubeconfig", kubeconfig);
-  }
-  return argv;
-}
-
-async function runCommand(argv: string[], deps: RunnerDeps): Promise<CommandResult> {
-  if (deps.runCommand) return deps.runCommand(argv);
-  const cmd = new Deno.Command(argv[0], {
-    args: argv.slice(1),
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const out = await cmd.output();
-  return {
-    success: out.success,
-    code: out.code,
-    stdout: new TextDecoder().decode(out.stdout),
-    stderr: new TextDecoder().decode(out.stderr),
-  };
-}
-
-async function runCommandWithStdin(
-  argv: string[],
-  stdin: string,
-  deps: RunnerDeps,
-): Promise<CommandResult> {
-  guardDryRun(argv);
-  if (deps.runCommand) return deps.runCommand(argv, stdin);
-
-  // Rendered manifests can be large and kubectl may exit early on errors,
-  // causing a broken pipe when streaming via stdin. Write to a temp file and
-  // let kubectl read it with -f; this is still guarded by --dry-run=server.
-  const tmpFile = await Deno.makeTempFile({ prefix: "radar-dryrun-", suffix: ".yaml" });
-  try {
-    await Deno.writeTextFile(tmpFile, stdin);
-    const fileArgv = [...argv];
-    const dashF = fileArgv.indexOf("-f");
-    if (dashF !== -1 && dashF + 1 < fileArgv.length) {
-      fileArgv[dashF + 1] = tmpFile;
-    }
-    return await runCommand(fileArgv, deps);
-  } finally {
-    await Deno.remove(tmpFile).catch(() => {});
-  }
-}
-
-/**
- * Safety guard: refuse to execute any kubectl command that does not contain
- * `--dry-run=server`. This is the single point that protects against accidental
- * cluster mutations.
- */
-export function guardDryRun(argv: string[]): void {
-  if (argv[0] !== "kubectl") return;
-  if (!argv.includes("--dry-run=server")) {
-    throw new Error(
-      `refusing to execute kubectl without --dry-run=server: ${argv.join(" ")}`,
-    );
-  }
-}
-
 function skipped(
-  component: ComponentRecord,
-  mapped: MappedPath,
+  namespace: string,
+  components: string[],
   status: DryRunStatus,
   reason: string,
   start: number,
   details: Record<string, unknown>,
 ): DryRun {
-  return result(component, mapped, status, "", reason, Date.now() - start, undefined, details);
+  return result(namespace, components, status, "", reason, Date.now() - start, details);
 }
 
 function result(
-  component: ComponentRecord,
-  mapped: MappedPath,
+  namespace: string,
+  components: string[],
   status: DryRunStatus,
   stdout: string,
   stderr: string,
   durationMs: number,
-  mutatedHelmVersion: string | undefined,
   details: Record<string, unknown>,
 ): DryRun {
   return {
-    name: component.name,
-    current: component.current,
-    latest: component.latest,
-    namespace: component.namespace,
-    kustomize_path: mapped.path,
+    namespace,
+    components,
     status,
     stdout: stdout.slice(0, 100_000),
     stderr: stderr.slice(0, 100_000),
     duration_ms: durationMs,
-    mutated_helm_version: mutatedHelmVersion,
     details,
   };
 }

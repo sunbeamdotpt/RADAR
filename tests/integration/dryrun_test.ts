@@ -4,8 +4,23 @@ import { runDryRuns } from "../../src/dryrun/engine.ts";
 import { PostgresStore } from "../../src/store/postgres_store.ts";
 import type { AssessmentReport } from "../../src/schema/assessment.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
+import type { HttpClient } from "../../src/sources/http.ts";
 
 const META = { domainSuffix: "sunbeam.pt", gitBaseUrl: "https://example.test/repo.git" };
+
+function fakeIndexHttp(): HttpClient {
+  return {
+    json: () => Promise.reject(new Error("unexpected json")),
+    text: () =>
+      Promise.resolve(`
+apiVersion: v1
+entries:
+  longhorn:
+    - version: 1.12.0
+      appVersion: v1.12.0
+`),
+  };
+}
 
 async function dockerAvailable(): Promise<boolean> {
   try {
@@ -128,9 +143,10 @@ helmCharts:
             mapperDeps: { basePath: baseDir, hints: new Map() },
             runnerDeps: {
               buildOnly: true,
+              http: fakeIndexHttp(),
               runCommand: (argv) => {
                 const [tool] = argv;
-                if (tool === "kustomize") {
+                if (tool === "sunbeam") {
                   return {
                     success: true,
                     code: 0,
@@ -148,9 +164,9 @@ helmCharts:
           const loaded = await store.loadLatestDryRuns();
           assertEquals(loaded?.dry_runs.length, 1);
           const longhorn = loaded?.dry_runs[0];
-          assertEquals(longhorn?.name, "Longhorn");
+          assertEquals(longhorn?.namespace, "longhorn-system");
+          assertEquals(longhorn?.components, ["Longhorn"]);
           assertEquals(longhorn?.status, "success");
-          assertEquals(longhorn?.mutated_helm_version, "v1.12.0");
           assertEquals(loaded?.inventory_generated_at, "2026-08-25 12:00:00 UTC");
           assertEquals(loaded?.assessment_generated_at, "2026-08-25 13:00:00 UTC");
           assertEquals(loaded?.generated_at, "2026-08-25 14:00:00 UTC");
@@ -161,9 +177,10 @@ helmCharts:
             mapperDeps: { basePath: baseDir, hints: new Map() },
             runnerDeps: {
               buildOnly: true,
+              http: fakeIndexHttp(),
               runCommand: (argv) => {
                 const [tool] = argv;
-                if (tool === "kustomize") {
+                if (tool === "sunbeam") {
                   return {
                     success: true,
                     code: 0,

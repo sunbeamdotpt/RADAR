@@ -3,6 +3,7 @@ import { cloneRepo } from "../git/clone.ts";
 import { log } from "../log.ts";
 import type { DryRunReport } from "../schema/dryrun.ts";
 import type { RadarStore } from "../store/factory.ts";
+import { FetchHttpClient, OfflineHttpClient } from "../sources/http.ts";
 import type { DryRunConfig } from "./config.ts";
 import { runDryRuns } from "./engine.ts";
 import type { MapperDeps } from "./mapper.ts";
@@ -18,7 +19,7 @@ export interface DryRunOrchestratorDeps {
 
 /**
  * Load optional `kustomize_path` hints from the seed YAML. These override the
- * slug heuristic for components whose base directory does not match their name.
+ * slug heuristic for namespaces whose base directory does not match their name.
  */
 export async function loadKustomizeHints(seedPath: string): Promise<Map<string, string>> {
   const hints = new Map<string, string>();
@@ -33,9 +34,9 @@ export async function loadKustomizeHints(seedPath: string): Promise<Map<string, 
   const components = Array.isArray(doc.components) ? doc.components : [];
   for (const raw of components) {
     if (!isRecord(raw)) continue;
-    const name = typeof raw.name === "string" ? raw.name : "";
+    const ns = typeof raw.namespace === "string" ? raw.namespace : "";
     const path = typeof raw.kustomize_path === "string" ? raw.kustomize_path : "";
-    if (name && path) hints.set(name, path);
+    if (ns && path) hints.set(ns, path);
   }
   return hints;
 }
@@ -58,7 +59,10 @@ export async function runDryRunPass(deps: DryRunOrchestratorDeps): Promise<DryRu
     const mapperDeps: MapperDeps = { basePath: cloned.path, hints };
     const runnerDeps: RunnerDeps = deps.runnerDeps ?? {
       kubeconfig: config.kubeconfig,
+      domain: config.domain,
+      acmeEmail: config.acmeEmail,
       buildOnly: config.buildOnly,
+      http: config.offline ? new OfflineHttpClient() : new FetchHttpClient(),
     };
 
     return await runDryRuns({
