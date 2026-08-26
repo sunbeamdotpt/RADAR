@@ -44,6 +44,7 @@ Deno.test({
           "eol_date",
           "eol_replacement",
           "deprecated",
+          "kustomize_path",
         ];
         const components = doc.components.map((c) =>
           Object.fromEntries(Object.entries(c).filter(([k]) => !HINT_KEYS.includes(k)))

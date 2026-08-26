@@ -77,6 +77,7 @@ components:
     track_app_version: true
     link_template: https://github.com/longhorn/longhorn/releases/tag/{app_version}
     notes: Helm chart 1.11.1
+    kustomize_path: base/longhorn
 
   - name: BuildKit
     namespace: build
@@ -177,6 +178,7 @@ components:
     track_app_version: true
     link_template: https://github.com/hashicorp/vault-secrets-operator/releases/tag/v{app_version}
     notes: Helm chart 1.4.0
+    kustomize_path: base/vso
 
   - name: CloudNativePG operator
     namespace: data

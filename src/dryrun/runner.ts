@@ -77,7 +77,7 @@ export async function runComponentDryRun(
     }
     details.mutated = true;
 
-    const build = await runCommand(["kustomize", "build", workDir], deps);
+    const build = await runCommand(["kustomize", "build", "--enable-helm", workDir], deps);
     details.build_exit_code = build.code;
     if (!build.success) {
       return result(
@@ -218,23 +218,22 @@ async function runCommandWithStdin(
 ): Promise<CommandResult> {
   guardDryRun(argv);
   if (deps.runCommand) return deps.runCommand(argv, stdin);
-  const cmd = new Deno.Command(argv[0], {
-    args: argv.slice(1),
-    stdin: "piped",
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const child = cmd.spawn();
-  const writer = child.stdin.getWriter();
-  await writer.write(new TextEncoder().encode(stdin));
-  await writer.close();
-  const out = await child.output();
-  return {
-    success: out.success,
-    code: out.code,
-    stdout: new TextDecoder().decode(out.stdout),
-    stderr: new TextDecoder().decode(out.stderr),
-  };
+
+  // Rendered manifests can be large and kubectl may exit early on errors,
+  // causing a broken pipe when streaming via stdin. Write to a temp file and
+  // let kubectl read it with -f; this is still guarded by --dry-run=server.
+  const tmpFile = await Deno.makeTempFile({ prefix: "radar-dryrun-", suffix: ".yaml" });
+  try {
+    await Deno.writeTextFile(tmpFile, stdin);
+    const fileArgv = [...argv];
+    const dashF = fileArgv.indexOf("-f");
+    if (dashF !== -1 && dashF + 1 < fileArgv.length) {
+      fileArgv[dashF + 1] = tmpFile;
+    }
+    return await runCommand(fileArgv, deps);
+  } finally {
+    await Deno.remove(tmpFile).catch(() => {});
+  }
 }
 
 /**

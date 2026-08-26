@@ -21,18 +21,38 @@ docker build -q -f "$ROOT/docker/dryrun.Dockerfile" -t sunbeam-radar-dryrun:dev 
 
 KUBECONFIG_MOUNT=""
 KUBECONFIG_ENV=""
+KUBECONFIG_TMP=""
+NETWORK_ARGS=("--network" "$NETWORK")
+DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@radar-dev-db:5432/${PG_DB}?sslmode=disable"
 if [[ -n "${RADAR_DRYRUN_KUBECONFIG:-}" ]]; then
-  KUBECONFIG_MOUNT="-v ${RADAR_DRYRUN_KUBECONFIG}:/tmp/kubeconfig:ro"
+  # Copy the kubeconfig to a world-readable temp file so the container's deno
+  # user can read it regardless of host ownership. The original file is untouched.
+  KUBECONFIG_TMP=$(mktemp)
+  cp "${RADAR_DRYRUN_KUBECONFIG}" "${KUBECONFIG_TMP}"
+  chmod 644 "${KUBECONFIG_TMP}"
+  KUBECONFIG_MOUNT="-v ${KUBECONFIG_TMP}:/tmp/kubeconfig:ro"
   KUBECONFIG_ENV="-e RADAR_DRYRUN_KUBECONFIG=/tmp/kubeconfig"
+  # Kubeconfigs that point to 127.0.0.1 (e.g. kubectl port-forward) only resolve
+  # from the host network namespace. Switch to host networking and point Postgres
+  # at the host-mapped port so both the cluster and the dev DB remain reachable.
+  NETWORK_ARGS=("--network" "host")
+  DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@127.0.0.1:5432/${PG_DB}?sslmode=disable"
 fi
+
+cleanup() {
+  if [[ -n "${KUBECONFIG_TMP:-}" && -f "${KUBECONFIG_TMP}" ]]; then
+    rm -f "${KUBECONFIG_TMP}"
+  fi
+}
+trap cleanup EXIT
 
 docker volume create radar-dev-data >/dev/null
 docker run --rm \
-  --network "$NETWORK" \
+  "${NETWORK_ARGS[@]}" \
   $KUBECONFIG_MOUNT \
   $KUBECONFIG_ENV \
   -e STORAGE=postgres \
-  -e DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@radar-dev-db:5432/${PG_DB}?sslmode=disable" \
+  -e DATABASE_URL="$DATABASE_URL" \
   -e RADAR_SEED_PATH=./seed/component-versions.yaml \
   -e GIT_BASE_URL="${GIT_BASE_URL:-https://github.com/sunbeamdotpt/sbbb.git}" \
   -e GIT_BASE_REF="${GIT_BASE_REF:-mainline}" \

@@ -36,12 +36,16 @@ export async function runDryRuns(deps: DryRunEngineDeps): Promise<DryRunReport> 
 
   const candidates = inventory.components.filter((c) =>
     c.update_available &&
+    c.source === "helm_chart" &&
     riskByName.get(c.name)?.risk_level === "likely_safe"
   );
 
   const dryRuns: DryRun[] = [];
   for (const component of candidates) {
-    const mapped = await mapComponentToKustomization(component.name, deps.mapperDeps);
+    const mapped = await mapComponentToKustomization(
+      { name: component.name, namespace: component.namespace },
+      deps.mapperDeps,
+    );
     if (!mapped) {
       dryRuns.push({
         name: component.name,
