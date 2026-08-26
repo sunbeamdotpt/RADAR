@@ -202,6 +202,7 @@ Deno.test("runNamespaceDryRun runs kubectl server-side dry-run", async () => {
     assertEquals(kubectlArgv.includes("--server-side"), true);
     assertEquals(kubectlArgv.includes("--force-conflicts"), true);
     assertEquals(kubectlArgv.includes("--dry-run=server"), true);
+    assertEquals(kubectlArgv.includes("--request-timeout=5m"), true);
     assertEquals(result.stdout, "serverside-applied (server dry run)");
   } finally {
     await Deno.remove(base, { recursive: true });

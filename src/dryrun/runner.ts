@@ -121,6 +121,12 @@ export async function runNamespaceDryRun(
     const sunbeamContextDir = join(workDir, ".sunbeam");
     await writeSunbeamContext(sunbeamContextDir, workDir, deps);
 
+    // Sunbeam downloads its own helm/kustomize binaries into ~/.sunbeam/bin on
+    // first use. In container/CI environments the download can hang or pull an
+    // incompatible helm build, so seed the system binaries that the image already
+    // ships. Sunbeam uses them if present and only falls back to downloading.
+    details.sunbeam_bins_seeded = await seedSunbeamBinaries(sunbeamContextDir);
+
     const render = await runSunbeamRender(namespace, workDir, deps);
     details.sunbeam_exit_code = render.code;
     if (!render.success) {
@@ -291,6 +297,41 @@ async function writeSunbeamContext(
   await Deno.writeTextFile(join(contextDir, "config.json"), JSON.stringify(context, null, 2));
 }
 
+/**
+ * Copy system helm/kustomize binaries into the Sunbeam context so it does not
+ * have to download them. Returns a map of binary name -> source path, or null
+ * for each binary that could not be found. Missing binaries are non-fatal;
+ * Sunbeam will fall back to its own download behavior.
+ */
+async function seedSunbeamBinaries(
+  contextDir: string,
+): Promise<Record<string, string | null>> {
+  const destDir = join(contextDir, "bin");
+  const result: Record<string, string | null> = { helm: null, kustomize: null };
+  const candidates: Record<string, string[]> = {
+    helm: ["/usr/local/bin/helm", "/usr/bin/helm", "/bin/helm"],
+    kustomize: ["/usr/local/bin/kustomize", "/usr/bin/kustomize", "/bin/kustomize"],
+  };
+
+  for (const [name, paths] of Object.entries(candidates)) {
+    for (const src of paths) {
+      try {
+        const info = await Deno.stat(src);
+        if (!info.isFile) continue;
+        await Deno.mkdir(destDir, { recursive: true });
+        const dest = join(destDir, name);
+        await Deno.copyFile(src, dest);
+        await Deno.chmod(dest, 0o755);
+        result[name] = src;
+        break;
+      } catch {
+        // Try next candidate; missing binaries are OK.
+      }
+    }
+  }
+  return result;
+}
+
 async function runSunbeamRender(
   namespace: string,
   homeDir: string,
@@ -309,6 +350,7 @@ async function runKubectlDryRun(renderedPath: string, deps: RunnerDeps): Promise
     "--server-side",
     "--force-conflicts",
     "--dry-run=server",
+    "--request-timeout=5m",
     "-f",
     renderedPath,
   ];
