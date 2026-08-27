@@ -14,7 +14,7 @@ cluster.
 
 ```
 deploy/
-├── kustomization.yaml    # namespace radar; wires images to oci.DOMAIN_SUFFIX/studio/radar-{api,job,dryrun}
+├── kustomization.yaml    # namespace radar; wires images to ghcr.io/sunbeamdotpt/radar-{api,job,dryrun}
 ├── namespace.yaml
 ├── config.yaml           # radar-config ConfigMap: STORAGE, DOMAIN_SUFFIX, GIT_BASE_*, RADAR_DASHBOARD_ENABLED, PORT
 ├── vault-secrets.yaml    # VaultAuth vso-auth + VaultDynamicSecret radar-db-creds (dsn key)
@@ -89,9 +89,9 @@ These mirror how kanban/goalert are wired. Nothing below exists today.
 2. **OpenBao static role** — seed the database secrets-engine role `static-creds/radar` (see
    `base/openbao/vault-bootstrap-job.yaml` for the pattern), rotation matching the other app roles.
    This is what `deploy/vault-secrets.yaml` reads via `static-creds/radar`.
-3. **Manifests into sbbb** — vendor `deploy/` as `base/radar/` in sbbb (keep the kustomization; the
-   overlay already substitutes `DOMAIN_SUFFIX` and the image registry at
-   `oci.sunbeam.pt/studio/sunbeam-radar-*`).
+3. **Manifests into sbbb** — vendor `deploy/` as `base/radar/` in sbbb. The kustomization currently
+   points at `ghcr.io/sunbeamdotpt/radar-*`; the sbbb overlay can substitute that to
+   `oci.sunbeam.pt/studio/sunbeam-radar-*` later.
 4. **Exposure (optional)** — RADAR has no Ingress. To browse the dashboard or API, add an HTTPRoute
    in `base/ingress/routes.yaml` on the Sunbeam Proxy. `GET /` serves the dashboard; `/api/v1/…`
    serves the JSON endpoints:

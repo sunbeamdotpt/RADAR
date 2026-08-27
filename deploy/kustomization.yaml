@@ -14,14 +14,15 @@ resources:
   - dryrun-rbac.yaml
   - dryrun-cronjob.yaml
 
-# Short image names — the registry is wired here, matching sbbb conventions.
+# Short image names — the registry is wired here. Using GHCR while the sbbb OCI
+# registry is not available; replace with oci.DOMAIN_SUFFIX/studio/... when ready.
 images:
   - name: sunbeam-radar-api
-    newName: oci.DOMAIN_SUFFIX/studio/sunbeam-radar-api
+    newName: ghcr.io/sunbeamdotpt/radar-api
     newTag: latest
   - name: sunbeam-radar-job
-    newName: oci.DOMAIN_SUFFIX/studio/sunbeam-radar-job
+    newName: ghcr.io/sunbeamdotpt/radar-job
     newTag: latest
   - name: sunbeam-radar-dryrun
-    newName: oci.DOMAIN_SUFFIX/studio/sunbeam-radar-dryrun
+    newName: ghcr.io/sunbeamdotpt/radar-dryrun
     newTag: latest
