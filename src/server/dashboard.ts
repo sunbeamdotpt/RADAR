@@ -532,6 +532,10 @@ const html = `<!DOCTYPE html>
         (a, b) => (DRYRUN_ORDER[a] ?? 99) - (DRYRUN_ORDER[b] ?? 99),
       );
 
+      const riskLevels = [...new Set(components.map((c) => c.risk_level))].sort(
+        (a, b) => (SEVERITY_ORDER[a] ?? 99) - (SEVERITY_ORDER[b] ?? 99),
+      );
+
       const COMPONENT_OPTIONS = [
         { value: "name_asc", label: "Name A-Z" },
         { value: "name_desc", label: "Name Z-A" },
@@ -545,12 +549,17 @@ const html = `<!DOCTYPE html>
 
       const ASSESSMENT_OPTIONS = [
         { value: "severity", label: "Severity" },
-        ...RISK_LEVELS.map((level) => ({ value: "level:" + level, label: humanizeSortLabel(level) })),
+        ...riskLevels.map((level) => ({ value: "level:" + level, label: humanizeSortLabel(level) })),
       ];
 
       const DRYRUN_OPTIONS = [
         { value: "status", label: "Status" },
-        ...dryrunLevels.map((status) => ({ value: "status:" + status, label: humanizeSortLabel(status) })),
+        ...dryrunLevels
+          .filter((status) => status !== "none")
+          .map((status) => ({
+            value: "status:" + status,
+            label: humanizeSortLabel(status),
+          })),
       ];
 
       const CVE_OPTIONS = [
@@ -671,8 +680,7 @@ const html = `<!DOCTYPE html>
                 \${c.risk_reason ? \`<div class="reason">\${escapeHtml(c.risk_reason)}</div>\` : ""}
               </td>
               <td>
-                <span class="badge \${dryrunClass}"><span aria-hidden="true">\${DRYRUN_EMOJI[c.dryrun_status] || "—"}</span> \${escapeHtml(c.dryrun_status)}</span>
-                \${c.dryrun_status !== "none" ? \`<div class="reason"><a href="/api/v1/dryruns?namespace=\${encodeURIComponent(c.dryrun_namespace)}" target="_blank" rel="noopener">show output</a></div>\` : ""}
+                \${c.dryrun_status === "none" ? "" : \`<span class="badge \${dryrunClass}"><span aria-hidden="true">\${DRYRUN_EMOJI[c.dryrun_status] || "—"}</span> \${escapeHtml(c.dryrun_status)}</span><div class="reason"><a href="/api/v1/dryruns?namespace=\${encodeURIComponent(c.dryrun_namespace)}" target="_blank" rel="noopener">show output</a></div>\`}
               </td>
             </tr>
           \`;
