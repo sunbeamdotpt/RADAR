@@ -392,6 +392,11 @@ const html = `<!DOCTYPE html>
       let sortCol = "assessment";
       let sortDir = 1;
       let assessmentCycle = -1;
+      let dryrunCycle = -1;
+
+      const dryrunLevels = [...new Set(components.map((c) => c.dryrun_status))].sort(
+        (a, b) => (DRYRUN_ORDER[a] ?? 99) - (DRYRUN_ORDER[b] ?? 99),
+      );
 
       function parseVersion(v) {
         return String(v)
@@ -445,9 +450,17 @@ const html = `<!DOCTYPE html>
             diff = (SEVERITY_ORDER[a.risk_level] ?? 99) - (SEVERITY_ORDER[b.risk_level] ?? 99);
             break;
           }
-          case "dryrun":
+          case "dryrun": {
+            const selected = dryrunCycle >= 0 ? dryrunLevels[dryrunCycle] : null;
+            const aSelected = a.dryrun_status === selected;
+            const bSelected = b.dryrun_status === selected;
+            if (selected) {
+              if (aSelected && !bSelected) { diff = -1; break; }
+              if (bSelected && !aSelected) { diff = 1; break; }
+            }
             diff = (DRYRUN_ORDER[a.dryrun_status] ?? 99) - (DRYRUN_ORDER[b.dryrun_status] ?? 99);
             break;
+          }
         }
         if (diff !== 0) return diff * dir;
         return a.name.localeCompare(b.name);
@@ -519,10 +532,20 @@ const html = `<!DOCTYPE html>
               if (assessmentCycle >= RISK_LEVELS.length) {
                 assessmentCycle = -1;
               }
+              dryrunCycle = -1;
               sortCol = "assessment";
+              sortDir = 1;
+            } else if (col === "dryrun") {
+              dryrunCycle++;
+              if (dryrunCycle >= dryrunLevels.length) {
+                dryrunCycle = -1;
+              }
+              assessmentCycle = -1;
+              sortCol = "dryrun";
               sortDir = 1;
             } else {
               assessmentCycle = -1;
+              dryrunCycle = -1;
               if (col === sortCol) {
                 sortDir = -sortDir;
               } else {
