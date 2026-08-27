@@ -127,15 +127,21 @@ The dry-run job is pipeline step 3: it runs after the assess job and previews li
 5. **Map** — component name → kustomization directory. `kustomize_path` hint wins, then a slug
    heuristic (`base/<slugified-name>`), then shorter slug variants (so "Gateway API CRDs" finds
    `base/gateway-api`). Multi-namespace components use the first namespace from the seed.
-6. **Mutate** — in a temp copy of the mapped directory, update the matching `helmCharts[].version`
-   to the component's `latest` version (chart name is parsed from the upstream `repo::name` form).
-7. **Build** — `kustomize build <temp-dir>`.
-8. **Dry-run** — pipe the rendered manifests to `kubectl apply --dry-run=server -f -`. The runner
+6. **Group by namespace** — candidate components are grouped by their Kubernetes namespace. All
+   candidates that share a namespace are tested in a single dry-run pass.
+7. **Mutate** — in a temp copy of the mapped directory, update the matching `helmCharts[].version`
+   entries for **every candidate in that namespace** to each component's `latest` version (chart
+   name is parsed from the upstream `repo::name` form).
+8. **Build** — `kustomize build <temp-dir>`.
+9. **Dry-run** — pipe the rendered manifests to `kubectl apply --dry-run=server -f -`. The runner
    refuses to execute any `kubectl` command that does not contain `--dry-run=server`. In dev, point
    `RADAR_DRYRUN_KUBECONFIG` at a kubeconfig; in-cluster, the pod uses its service account.
-9. **Persist** — one `DryRun` record per candidate, sorted by name, then `store.saveDryRuns()`: the
-   `dry_runs` table in postgres, or `RADAR_DRYRUN_JSON_PATH` with `STORAGE=json`. With postgres +
-   explicit `RADAR_JSON_PATH`, a JSON mirror is also written.
+10. **Persist** — one `DryRun` record per **namespace** that had candidates, sorted by namespace,
+    then `store.saveDryRuns()`: the `dry_runs` table in postgres, or `RADAR_DRYRUN_JSON_PATH` with
+    `STORAGE=json`. With postgres + explicit `RADAR_JSON_PATH`, a JSON mirror is also written.
+
+Because the dry-run is run once per namespace with every candidate chart in that namespace bumped to
+`latest`, all components in the namespace share the same `status`, `stdout`, and `stderr`.
 
 ### The layered engine (`src/assess/engine.ts`)
 
@@ -176,14 +182,15 @@ recorded in the assessment's `layer` field:
   — one row per assessed component per run, attached to the inventory run it was computed from;
   `position` preserves severity-sorted report order. Re-assessing the same inventory run replaces
   that run's assessments (idempotent re-runs).
-- `dry_runs(run_id, dry_run_at, position, name, current, latest, namespace, kustomize_path, status,
-  stdout, stderr, duration_ms, mutated_helm_version, details)`
-  — one row per dry-run preview per run, attached to the inventory run it was computed from.
-  Re-running dry-runs against the same inventory run replaces that run's previews (idempotent
-  re-runs).
+- `dry_runs(run_id, dry_run_at, position, namespace, components, status, stdout, stderr,
+  duration_ms, details)`
+  — one row per namespace dry-run per run, attached to the inventory run it was computed from.
+  `components` is a JSONB array of the component names whose chart versions were bumped in that
+  namespace. Re-running dry-runs against the same inventory run replaces that run's previews
+  (idempotent re-runs).
 - Readers always query the latest run; migrations (`db/migrations/001_init.sql`,
-  `002_assessments.sql`, `003_dry_runs.sql`) apply idempotently at job/server startup. Plain SQL, no
-  extensions — CNPG-ready.
+  `002_assessments.sql`, `003_dry_runs.sql`, `004_dry_runs_namespace.sql`) apply idempotently at
+  job/server startup. Plain SQL, no extensions — CNPG-ready.
 
 The append-only runs table gives free history; a future pruning policy can simply delete old `runs`
 rows (cascade cleans `components` and `assessments`).

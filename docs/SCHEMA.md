@@ -177,17 +177,20 @@ The step-3 dry-run preview output, validated by `src/schema/dryrun.ts`:
   "assessment_generated_at": "2026-08-22 01:30:12 UTC",
   "dry_runs": [
     {
-      "name": "Longhorn",
-      "current": "v1.11.1",
-      "latest": "v1.12.0",
       "namespace": "longhorn-system",
-      "kustomize_path": "/tmp/radar-base-xxx/base/longhorn",
+      "components": ["Longhorn"],
       "status": "success",
       "stdout": "namespace/longhorn-system created (dry-run)",
       "stderr": "",
       "duration_ms": 1234,
-      "mutated_helm_version": "v1.12.0",
-      "details": {}
+      "details": {
+        "work_dir": "/tmp/radar-dryrun-xxx",
+        "namespace_base": "/tmp/radar-base-xxx/base/longhorn",
+        "component_count": 1,
+        "mutated_versions": { "Longhorn": "1.12.0" },
+        "kubectl_exit_code": 0,
+        "sunbeam_exit_code": 0
+      }
     }
   ]
 }
@@ -195,9 +198,10 @@ The step-3 dry-run preview output, validated by `src/schema/dryrun.ts`:
 
 - `inventory_generated_at` and `assessment_generated_at` tie the report to the runs it was computed
   from. All timestamps use the same `%Y-%m-%d %H:%M:%S UTC` format.
-- Dry-run fields: `name`, `current`, `latest`, `namespace`, `kustomize_path`, `status`, `stdout`,
-  `stderr`, `duration_ms`, `details` (default `{}`). `mutated_helm_version` is present when a Helm
-  chart version was rewritten. Unknown keys are rejected.
+- Dry-run fields: `namespace`, `components`, `status`, `stdout`, `stderr`, `duration_ms`, `details`
+  (default `{}`). `components` is the list of component names whose Helm chart versions were bumped
+  in this namespace dry-run. Because candidates are grouped by namespace, every component in
+  `components` shares the same `status`, `stdout`, and `stderr`. Unknown keys are rejected.
 - Status values:
 
   | Status                       | Meaning                                                                |
@@ -253,22 +257,19 @@ assessments(
 dry_runs(
   run_id               BIGINT REFERENCES runs(id) ON DELETE CASCADE,
   dry_run_at           TIMESTAMPTZ NOT NULL,
-  position             INTEGER NOT NULL,          -- name-sorted report order
-  name                 TEXT NOT NULL,
-  current              TEXT NOT NULL,
-  latest               TEXT NOT NULL,
+  position             INTEGER NOT NULL,          -- namespace-sorted report order
   namespace            TEXT NOT NULL,
-  kustomize_path       TEXT NOT NULL,
+  components           JSONB NOT NULL DEFAULT '[]', -- component names bumped in this namespace
   status               TEXT NOT NULL,
   stdout               TEXT NOT NULL DEFAULT '',
   stderr               TEXT NOT NULL DEFAULT '',
   duration_ms          INTEGER NOT NULL DEFAULT 0,
-  mutated_helm_version TEXT,                      -- null unless a helm chart was mutated
   details              JSONB NOT NULL DEFAULT '{}',
-  PRIMARY KEY (run_id, name)
+  PRIMARY KEY (run_id, namespace)
 )
 ```
 
 One `runs` row + N `components` rows per inventory run, one `assessments` row per assessed
-component, and one `dry_runs` row per dry-run preview, all attached to the run they were computed
-from (append-only). Readers use the latest run; the latest run is the next run's previous state.
+component, and one `dry_runs` row per namespace dry-run preview, all attached to the run they were
+computed from (append-only). Readers use the latest run; the latest run is the next run's previous
+state.

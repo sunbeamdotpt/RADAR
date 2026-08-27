@@ -24,11 +24,12 @@ dashboards, and release tooling a canonical answer to "what are we running, and 
   prechecks (fork/floating/deprecated/EOL), version delta, structured manifests (Helm values schema,
   CRD, go.mod), upstream release notes, and changelog keywords. Writes the assessment run to the
   same store.
-- **Dry-run job** (`src/dryrun/`) — pipeline step 3, run after the assess job. For every drifted
-  component judged `likely_safe`, it clones the manifest base, rewrites the Helm chart version to
-  `latest`, renders the manifests with `kustomize build`, and pipes them to
-  `kubectl apply --dry-run=server`. Results are stored and served by the API. **This job is
-  non-mutating: every `kubectl` invocation is guarded to contain `--dry-run=server`.**
+- **Dry-run job** (`src/dryrun/`) — pipeline step 3, run after the assess job. Drifted components
+  judged `likely_safe` are grouped by Kubernetes namespace; for each namespace, every candidate Helm
+  chart version is rewritten to `latest`, the namespace is rendered with `kustomize build`, and the
+  result is piped to `kubectl apply --dry-run=server`. All components in the namespace share the
+  resulting dry-run status. Results are stored and served by the API. **This job is non-mutating:
+  every `kubectl` invocation is guarded to contain `--dry-run=server`.**
 - **REST API** (`src/server/`) — read-only JSON over the latest stored report, assessments, and
   dry-run previews.
 - **Stores** (`src/store/`) — `json` (local file, dev default) or `postgres` (prod).

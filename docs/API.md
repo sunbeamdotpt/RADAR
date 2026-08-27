@@ -125,6 +125,13 @@ evidence. `404 {"error":"assessment not found: {name}"}` when absent.
 The dry-run job (pipeline step 3 — see docs/ARCHITECTURE.md) attaches one dry-run report to the
 latest assessed inventory run; these endpoints serve it.
 
+Dry-runs are grouped by Kubernetes namespace: all drifted `likely_safe` Helm components in a
+namespace are bumped to `latest` together, the namespace is rendered once, and
+`kubectl apply
+--dry-run=server` is run once. The resulting record covers every component whose
+chart was mutated in that namespace, and all of them share the same `status`, `stdout`, and
+`stderr`.
+
 ### `GET /api/v1/dryruns`
 
 The full latest dry-run report. Optional `?status=` narrows `dry_runs` to one status, and optional
@@ -137,17 +144,20 @@ The full latest dry-run report. Optional `?status=` narrows `dry_runs` to one st
   "assessment_generated_at": "2026-08-22 01:30:12 UTC",
   "dry_runs": [
     {
-      "name": "Longhorn",
-      "current": "v1.11.1",
-      "latest": "v1.12.0",
       "namespace": "longhorn-system",
-      "kustomize_path": "/tmp/radar-base-xxx/base/longhorn",
+      "components": ["Longhorn"],
       "status": "success",
       "stdout": "namespace/longhorn-system created (dry-run)",
       "stderr": "",
       "duration_ms": 1234,
-      "mutated_helm_version": "v1.12.0",
-      "details": { "build_exit_code": 0, "kubectl_exit_code": 0 }
+      "details": {
+        "work_dir": "/tmp/radar-dryrun-xxx",
+        "namespace_base": "/tmp/radar-base-xxx/base/longhorn",
+        "component_count": 1,
+        "mutated_versions": { "Longhorn": "1.12.0" },
+        "kubectl_exit_code": 0,
+        "sunbeam_exit_code": 0
+      }
     }
   ]
 }
@@ -158,27 +168,30 @@ Statuses: `success`, `build_failed`, `dryrun_failed`, `skipped_no_mapping`,
 before the first dry-run job; `400 {"error":"invalid status: … (expected one of …)"}` when the
 filter value isn't a known status.
 
-### `GET /api/v1/dryruns/{name}`
+### `GET /api/v1/dryruns/{namespace}`
 
-One dry-run result. `name` is URL-encoded and matched exactly, like the component endpoints.
+One dry-run result, looked up by Kubernetes namespace (URL-encoded).
 
 ```json
 {
-  "name": "Longhorn",
-  "current": "v1.11.1",
-  "latest": "v1.12.0",
   "namespace": "longhorn-system",
-  "kustomize_path": "/tmp/radar-base-xxx/base/longhorn",
+  "components": ["Longhorn"],
   "status": "success",
   "stdout": "namespace/longhorn-system created (dry-run)",
   "stderr": "",
   "duration_ms": 1234,
-  "mutated_helm_version": "v1.12.0",
-  "details": {}
+  "details": {
+    "work_dir": "/tmp/radar-dryrun-xxx",
+    "namespace_base": "/tmp/radar-base-xxx/base/longhorn",
+    "component_count": 1,
+    "mutated_versions": { "Longhorn": "1.12.0" },
+    "kubectl_exit_code": 0,
+    "sunbeam_exit_code": 0
+  }
 }
 ```
 
-`404 {"error":"dry-run not found: {name}"}` when absent.
+`404 {"error":"dry-run not found: {namespace}"}` when absent.
 
 ## Errors
 
