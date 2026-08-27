@@ -24,6 +24,13 @@ KUBECONFIG_ENV=""
 KUBECONFIG_TMP=""
 NETWORK_ARGS=("--network" "$NETWORK")
 DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@radar-dev-db:5432/${PG_DB}?sslmode=disable"
+
+# Auto-detect a local kubeconfig when none is explicitly provided so dev dry-runs
+# work out of the box against kind/minikube/k3d clusters.
+if [[ -z "${RADAR_DRYRUN_KUBECONFIG:-}" && -f "${HOME}/.kube/config" ]]; then
+  RADAR_DRYRUN_KUBECONFIG="${HOME}/.kube/config"
+fi
+
 if [[ -n "${RADAR_DRYRUN_KUBECONFIG:-}" ]]; then
   # Copy the kubeconfig to a world-readable temp file so the container's deno
   # user can read it regardless of host ownership. The original file is untouched.
