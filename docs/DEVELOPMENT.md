@@ -53,7 +53,8 @@ RADAR_OFFLINE=1 scripts/dev-job.sh      # skip upstream fetches (fallback behavi
 GIT_BASE_URL=/path/to/local/sbbb scripts/dev-job.sh   # skip the GitHub clone
 GITHUB_TOKEN=… scripts/dev-job.sh       # avoid GitHub rate limits
 RADAR_DRYRUN_BUILD_ONLY=1 scripts/dev-dryrun.sh       # validate kustomize build without a cluster
-RADAR_DRYRUN_KUBECONFIG=~/.kube/config scripts/dev-dryrun.sh   # dry-run against a real cluster
+scripts/dev-dryrun.sh                                 # dry-run against a local cluster (~/.kube/config auto-detected)
+RADAR_DRYRUN_KUBECONFIG=~/.kube/config scripts/dev-dryrun.sh   # override the auto-detected kubeconfig
 ```
 
 ## The compatibility test (`tests/parity/`)
@@ -109,9 +110,9 @@ written to the `dry_runs` table in postgres, or `RADAR_DRYRUN_JSON_PATH` with `S
 
 ```bash
 deno task dryrun                    # STORAGE=json → ./data/component-versions.dryruns.json
-scripts/dev-dryrun.sh               # against the dev stack
+scripts/dev-dryrun.sh               # against the dev stack (auto-detects ~/.kube/config)
 RADAR_DRYRUN_BUILD_ONLY=1 scripts/dev-dryrun.sh     # skip kubectl, only validate kustomize build
-RADAR_DRYRUN_KUBECONFIG=~/.kube/config scripts/dev-dryrun.sh   # dry-run against a real cluster
+RADAR_DRYRUN_KUBECONFIG=~/.kube/config scripts/dev-dryrun.sh   # override the auto-detected kubeconfig
 ```
 
 Only `source: helm_chart` components are mutated today; other sources are recorded as

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run one RADAR dry-run preview pass (pipeline step 3) against the dev stack.
 # Requires inventory + assessment runs first (scripts/dev-job.sh, scripts/dev-assess.sh).
-# Dev kubeconfig is opt-in via RADAR_DRYRUN_KUBECONFIG (mounted read-only).
+# Dev kubeconfig is auto-detected from ~/.kube/config when present; override with
+# RADAR_DRYRUN_KUBECONFIG (mounted read-only).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
