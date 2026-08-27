@@ -79,6 +79,16 @@ const html = `<!DOCTYPE html>
       color: var(--text-primary);
     }
 
+    .radar-glow {
+      text-shadow: 0 0 18px rgba(250, 82, 15, 0.35), 0 0 42px rgba(250, 82, 15, 0.12);
+      animation: radar-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes radar-glow {
+      0%, 100% { text-shadow: 0 0 18px rgba(250, 82, 15, 0.35), 0 0 42px rgba(250, 82, 15, 0.12); }
+      50% { text-shadow: 0 0 28px rgba(250, 82, 15, 0.55), 0 0 64px rgba(250, 82, 15, 0.22); }
+    }
+
     h1 .accent { color: var(--accent); }
 
     h1 .logo {
@@ -278,7 +288,7 @@ const html = `<!DOCTYPE html>
   <a href="#main-content" class="skip-link">Skip to main content</a>
   <header>
     <div class="header-inner">
-      <h1><span class="accent">Sunbeam</span> RADAR <img src="/assets/sunbeam.png" alt="" class="logo"></h1>
+      <h1><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></h1>
       <p class="subtitle">
         Release Automation &amp; Deployment Asset Registry — tracks the software versions
         pinned in the Sunbeam Kubernetes platform and surfaces upstream drift, risk
