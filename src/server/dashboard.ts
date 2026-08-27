@@ -674,7 +674,7 @@ const html = `<!DOCTYPE html>
               </td>
               <td class="version current">\${escapeHtml(c.current)}</td>
               <td class="version latest">\${latestCell}</td>
-              <td class="version cve">—</td>
+              <td class="version cve"></td>
               <td>
                 <span class="badge \${badgeClass}"><span aria-hidden="true">\${ASSESSMENT_EMOJI[c.risk_level] || "❓"}</span> \${escapeHtml(c.risk_level)}</span>
                 \${c.risk_reason ? \`<div class="reason">\${escapeHtml(c.risk_reason)}</div>\` : ""}
