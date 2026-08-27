@@ -122,6 +122,15 @@ const html = `<!DOCTYPE html>
       color: var(--accent);
     }
 
+    .stat-value.pulse {
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+
     .stat-label {
       font-size: 0.75rem;
       font-weight: 791;
@@ -582,7 +591,7 @@ const html = `<!DOCTYPE html>
 
       statusBar.innerHTML = \`
         <div class="stat"><div class="stat-value">\${counts.total}</div><div class="stat-label">Components</div></div>
-        <div class="stat"><div class="stat-value">\${counts.update_available}</div><div class="stat-label">Updates Available</div></div>
+        <div class="stat"><div class="stat-value pulse">\${counts.update_available}</div><div class="stat-label">Updates Available</div></div>
         <div class="stat"><div class="stat-value">\${counts.breaking}</div><div class="stat-label">Breaking Risks</div></div>
         <div class="stat"><div class="stat-value">\${counts.dryrun_success}</div><div class="stat-label">Dry-run Successes</div></div>
       \`;
