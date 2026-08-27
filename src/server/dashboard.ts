@@ -80,6 +80,13 @@ const html = `<!DOCTYPE html>
 
     h1 .accent { color: var(--accent); }
 
+    h1 .logo {
+      height: 1.25em;
+      width: auto;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+    }
+
     .subtitle {
       margin: 0.5rem 0 0;
       color: var(--text-secondary);
@@ -227,10 +234,10 @@ const html = `<!DOCTYPE html>
     th.sortable:hover { color: var(--beam-gold); }
     th.sortable .sort-indicator {
       display: inline-block;
-      width: 1em;
       margin-left: 0.25rem;
       color: var(--beam-gold);
       font-size: 0.625rem;
+      white-space: nowrap;
     }
 
     .reason {
@@ -260,7 +267,7 @@ const html = `<!DOCTYPE html>
   <a href="#main-content" class="skip-link">Skip to main content</a>
   <header>
     <div class="header-inner">
-      <h1><span class="accent">Sunbeam</span> RADAR</h1>
+      <h1><img src="https://wiki.artemis.cdg.sunbeam.pt:8443/images/sunbeam-1x.png" alt="" class="logo"> <span class="accent">Sunbeam</span> RADAR</h1>
       <p class="subtitle">
         Release Automation &amp; Deployment Asset Registry — tracks the software versions
         pinned in the Sunbeam Kubernetes platform and surfaces upstream drift, risk
@@ -284,6 +291,8 @@ const html = `<!DOCTYPE html>
       floating_tag: 4, custom_fork: 5, review: 6, unknown: 7,
       likely_safe: 8, non_applicable: 9,
     };
+
+    const RISK_LEVELS = Object.keys(SEVERITY_ORDER);
 
     const ASSESSMENT_EMOJI = {
       breaking: "🚨", deprecated: "⚠️", eol_warning: "⏰", false_positive: "🔍",
@@ -380,6 +389,7 @@ const html = `<!DOCTYPE html>
 
       let sortCol = "assessment";
       let sortDir = 1;
+      let assessmentCycle = -1;
 
       function parseVersion(v) {
         return String(v)
@@ -422,9 +432,17 @@ const html = `<!DOCTYPE html>
           case "latest":
             diff = compareVersion(a.latest, b.latest);
             break;
-          case "assessment":
+          case "assessment": {
+            const selected = assessmentCycle >= 0 ? RISK_LEVELS[assessmentCycle] : null;
+            const aSelected = a.risk_level === selected;
+            const bSelected = b.risk_level === selected;
+            if (selected) {
+              if (aSelected && !bSelected) { diff = -1; break; }
+              if (bSelected && !aSelected) { diff = 1; break; }
+            }
             diff = (SEVERITY_ORDER[a.risk_level] ?? 99) - (SEVERITY_ORDER[b.risk_level] ?? 99);
             break;
+          }
           case "dryrun":
             diff = (DRYRUN_ORDER[a.dryrun_status] ?? 99) - (DRYRUN_ORDER[b.dryrun_status] ?? 99);
             break;
@@ -445,8 +463,7 @@ const html = `<!DOCTYPE html>
       }
 
       function renderTable() {
-        components.sort(compareRows);
-        const rows = components.map(c => {
+        const rows = components.slice().sort(compareRows).map(c => {
           const latestLink = formatLink(c.link_template, c.latest);
           const latestCell = latestLink
             ? \`<a href="\${escapeHtml(latestLink)}" target="_blank" rel="noopener">\${escapeHtml(c.latest)}</a>\`
@@ -495,11 +512,21 @@ const html = `<!DOCTYPE html>
         table.querySelectorAll("th.sortable").forEach(th => {
           th.addEventListener("click", () => {
             const col = th.dataset.col;
-            if (col === sortCol) {
-              sortDir = -sortDir;
-            } else {
-              sortCol = col;
+            if (col === "assessment") {
+              assessmentCycle++;
+              if (assessmentCycle >= RISK_LEVELS.length) {
+                assessmentCycle = -1;
+              }
+              sortCol = "assessment";
               sortDir = 1;
+            } else {
+              assessmentCycle = -1;
+              if (col === sortCol) {
+                sortDir = -sortDir;
+              } else {
+                sortCol = col;
+                sortDir = 1;
+              }
             }
             renderTable();
           });
