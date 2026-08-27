@@ -59,15 +59,16 @@ const html = `<!DOCTYPE html>
     header {
       background: var(--bg-nav);
       border-bottom: 1px solid var(--border-default);
-      padding: 1.5rem 2rem;
+      padding: 1.5rem 0;
       position: sticky;
       top: 0;
       z-index: 10;
     }
 
-    .header-inner {
+    .container {
       max-width: 1400px;
       margin: 0 auto;
+      padding: 0 2rem;
     }
 
     h1 {
@@ -107,9 +108,7 @@ const html = `<!DOCTYPE html>
     }
 
     main {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 2rem;
+      padding: 2rem 0;
     }
 
     .status-bar {
@@ -278,7 +277,8 @@ const html = `<!DOCTYPE html>
     }
 
     @media (max-width: 768px) {
-      header, main, footer { padding-left: 1rem; padding-right: 1rem; }
+      .container { padding-left: 1rem; padding-right: 1rem; }
+      footer { padding-left: 1rem; padding-right: 1rem; }
       th, td { padding: 0.625rem 0.75rem; }
       .hide-sm { display: none; }
     }
@@ -287,7 +287,7 @@ const html = `<!DOCTYPE html>
 <body>
   <a href="#main-content" class="skip-link">Skip to main content</a>
   <header>
-    <div class="header-inner">
+    <div class="header-inner container">
       <h1><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></h1>
       <p class="subtitle">
         Release Automation &amp; Deployment Asset Registry — tracks the software versions
@@ -297,9 +297,11 @@ const html = `<!DOCTYPE html>
     </div>
   </header>
   <main id="main-content">
-    <div id="status-bar" class="status-bar" aria-live="polite"></div>
-    <div id="content">
-      <div class="message">Loading RADAR data…</div>
+    <div class="container">
+      <div id="status-bar" class="status-bar" aria-live="polite"></div>
+      <div id="content">
+        <div class="message">Loading RADAR data…</div>
+      </div>
     </div>
   </main>
   <footer>
