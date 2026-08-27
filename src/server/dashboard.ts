@@ -391,7 +391,7 @@ const html = `<!DOCTYPE html>
 
       let sortCol = "assessment";
       let sortDir = 1;
-      let assessmentCycle = -1;
+      let assessmentCycle = RISK_LEVELS.indexOf("likely_safe");
       let dryrunCycle = -1;
       let componentCycle = 0;
 
