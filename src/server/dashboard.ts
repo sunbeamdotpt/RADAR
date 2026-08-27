@@ -86,8 +86,8 @@ const html = `<!DOCTYPE html>
     }
 
     @keyframes radar-glow {
-      0%, 100% { text-shadow: 0 0 18px rgba(250, 82, 15, 0.35), 0 0 42px rgba(250, 82, 15, 0.12); }
-      50% { text-shadow: 0 0 28px rgba(250, 82, 15, 0.55), 0 0 64px rgba(250, 82, 15, 0.22); }
+      0%, 100% { text-shadow: 0 0 18px rgba(250, 82, 15, 0.45), 0 0 42px rgba(250, 82, 15, 0.18); }
+      50% { text-shadow: 0 0 34px rgba(250, 82, 15, 0.75), 0 0 78px rgba(250, 82, 15, 0.32); }
     }
 
     h1 .accent { color: var(--accent); }
@@ -246,25 +246,112 @@ const html = `<!DOCTYPE html>
     .badge-dryrun-skipped_unsupported_source { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
     .badge-dryrun-none { background: transparent; color: var(--text-muted); border: 1px dashed var(--border-default); }
 
-    th.sortable {
-      cursor: pointer;
-      user-select: none;
-      white-space: nowrap;
-    }
-    th.sortable:hover { color: var(--beam-gold); }
-    th.sortable .sort-indicator {
-      display: inline-block;
-      margin-left: 0.25rem;
-      color: var(--beam-gold);
-      font-size: 0.625rem;
-      white-space: nowrap;
-    }
-
     .reason {
       font-size: 0.75rem;
       color: var(--text-secondary);
       margin-top: 0.25rem;
       max-width: 320px;
+    }
+
+    .dropdown {
+      position: relative;
+      display: inline-block;
+    }
+
+    .dropdown-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: 2px;
+      padding: 0.375rem 0.625rem;
+      color: var(--sunshine-700);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 791;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .dropdown-trigger:hover {
+      border-color: var(--accent);
+      color: var(--beam-gold);
+    }
+
+    .dropdown-trigger:focus-visible {
+      outline: 1px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    .dropdown-chevron {
+      font-size: 0.625rem;
+      color: var(--beam-gold);
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 0.25rem);
+      left: 0;
+      min-width: 10rem;
+      max-height: 26rem;
+      overflow-y: auto;
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: 2px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+      z-index: 20;
+      display: none;
+    }
+
+    .dropdown-open > .dropdown-menu {
+      display: block;
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 647;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .dropdown-item:hover,
+    .dropdown-item:focus-visible {
+      background: rgba(255, 161, 16, 0.08);
+      color: var(--text-primary);
+      outline: none;
+    }
+
+    .dropdown-item.active {
+      color: var(--accent);
+    }
+
+    .dropdown-check {
+      font-size: 0.625rem;
+      color: var(--accent);
+      visibility: hidden;
+    }
+
+    .dropdown-item.active .dropdown-check {
+      visibility: visible;
+    }
+
+    th {
+      vertical-align: middle;
     }
 
     footer {
@@ -353,6 +440,31 @@ const html = `<!DOCTYPE html>
         .replaceAll('"', "&quot;");
     }
 
+    function humanizeSortLabel(value) {
+      return String(value)
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    function renderDropdown(label, options, selectedValue, col) {
+      const items = options.map((opt) => \`
+        <button type="button" class="dropdown-item \${opt.value === selectedValue ? "active" : ""}" data-col="\${escapeHtml(col)}" data-value="\${escapeHtml(opt.value)}">
+          <span>\${escapeHtml(opt.label)}</span>
+          <span class="dropdown-check">✓</span>
+        </button>
+      \`).join("");
+      return \`
+        <div class="dropdown" data-col="\${escapeHtml(col)}">
+          <button type="button" class="dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">
+            \${escapeHtml(label)} <span class="dropdown-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="dropdown-menu" role="listbox">
+            \${items}
+          </div>
+        </div>
+      \`;
+    }
+
     async function load() {
       const content = document.getElementById("content");
       const statusBar = document.getElementById("status-bar");
@@ -410,15 +522,38 @@ const html = `<!DOCTYPE html>
         };
       });
 
-      let sortCol = "assessment";
-      let sortDir = 1;
-      let assessmentCycle = RISK_LEVELS.indexOf("likely_safe");
-      let dryrunCycle = -1;
-      let componentCycle = 0;
-
       const dryrunLevels = [...new Set(components.map((c) => c.dryrun_status))].sort(
         (a, b) => (DRYRUN_ORDER[a] ?? 99) - (DRYRUN_ORDER[b] ?? 99),
       );
+
+      const COMPONENT_OPTIONS = [
+        { value: "name_asc", label: "Name A-Z" },
+        { value: "name_desc", label: "Name Z-A" },
+        { value: "namespace", label: "Namespace" },
+      ];
+
+      const VERSION_OPTIONS = [
+        { value: "version_asc", label: "Version A-Z" },
+        { value: "version_desc", label: "Version Z-A" },
+      ];
+
+      const ASSESSMENT_OPTIONS = [
+        { value: "severity", label: "Severity" },
+        ...RISK_LEVELS.map((level) => ({ value: "level:" + level, label: humanizeSortLabel(level) })),
+      ];
+
+      const DRYRUN_OPTIONS = [
+        { value: "status", label: "Status" },
+        ...dryrunLevels.map((status) => ({ value: "status:" + status, label: humanizeSortLabel(status) })),
+      ];
+
+      let sortCol = "assessment";
+      let sortDir = 1;
+      let componentSort = "name_asc";
+      let currentSort = "version_asc";
+      let latestSort = "version_asc";
+      let assessmentSort = "level:likely_safe";
+      let dryrunSort = "status";
 
       function parseVersion(v) {
         return String(v)
@@ -449,11 +584,10 @@ const html = `<!DOCTYPE html>
       }
 
       function compareRows(a, b) {
-        const dir = sortDir;
         let diff = 0;
         switch (sortCol) {
           case "component": {
-            if (componentCycle === 2) {
+            if (componentSort === "namespace") {
               diff = a.namespace.localeCompare(b.namespace) || a.name.localeCompare(b.name);
             } else {
               diff = a.name.localeCompare(b.name);
@@ -467,7 +601,7 @@ const html = `<!DOCTYPE html>
             diff = compareVersion(a.latest, b.latest);
             break;
           case "assessment": {
-            const selected = assessmentCycle >= 0 ? RISK_LEVELS[assessmentCycle] : null;
+            const selected = assessmentSort.startsWith("level:") ? assessmentSort.slice(6) : null;
             const aSelected = a.risk_level === selected;
             const bSelected = b.risk_level === selected;
             if (selected) {
@@ -478,7 +612,7 @@ const html = `<!DOCTYPE html>
             break;
           }
           case "dryrun": {
-            const selected = dryrunCycle >= 0 ? dryrunLevels[dryrunCycle] : null;
+            const selected = dryrunSort.startsWith("status:") ? dryrunSort.slice(7) : null;
             const aSelected = a.dryrun_status === selected;
             const bSelected = b.dryrun_status === selected;
             if (selected) {
@@ -489,21 +623,18 @@ const html = `<!DOCTYPE html>
             break;
           }
         }
-        if (diff !== 0) return diff * dir;
+        if (diff !== 0) return diff * sortDir;
         return a.name.localeCompare(b.name);
       }
 
-      function updateHeaders(table) {
-        table.querySelectorAll("th.sortable").forEach(th => {
-          const indicator = th.querySelector(".sort-indicator");
-          if (th.dataset.col === sortCol) {
-            indicator.textContent = sortDir === 1 ? "▲" : "▼";
-          } else if (th.dataset.col === "component" && componentCycle === 2) {
-            indicator.textContent = "▲";
-          } else {
-            indicator.textContent = "";
-          }
-        });
+      function applySort(col, value) {
+        sortCol = col;
+        if (col === "component") componentSort = value;
+        if (col === "current") currentSort = value;
+        if (col === "latest") latestSort = value;
+        if (col === "assessment") assessmentSort = value;
+        if (col === "dryrun") dryrunSort = value;
+        sortDir = value.endsWith("_desc") ? -1 : 1;
       }
 
       function renderTable() {
@@ -539,11 +670,11 @@ const html = `<!DOCTYPE html>
             <table role="table" aria-label="RADAR component overview">
               <thead>
                 <tr>
-                  <th scope="col" class="sortable" data-col="component">Component<span class="sort-indicator"></span></th>
-                  <th scope="col" class="sortable" data-col="current">Current<span class="sort-indicator"></span></th>
-                  <th scope="col" class="sortable" data-col="latest">Latest<span class="sort-indicator"></span></th>
-                  <th scope="col" class="sortable" data-col="assessment">Assessment<span class="sort-indicator"></span></th>
-                  <th scope="col" class="sortable" data-col="dryrun">Dry-run<span class="sort-indicator"></span></th>
+                  <th scope="col">\${renderDropdown("Component", COMPONENT_OPTIONS, componentSort, "component")}</th>
+                  <th scope="col">\${renderDropdown("Current", VERSION_OPTIONS, currentSort, "current")}</th>
+                  <th scope="col">\${renderDropdown("Latest", VERSION_OPTIONS, latestSort, "latest")}</th>
+                  <th scope="col">\${renderDropdown("Assessment", ASSESSMENT_OPTIONS, assessmentSort, "assessment")}</th>
+                  <th scope="col">\${renderDropdown("Dry-run", DRYRUN_OPTIONS, dryrunSort, "dryrun")}</th>
                 </tr>
               </thead>
               <tbody>\${rows}</tbody>
@@ -552,47 +683,42 @@ const html = `<!DOCTYPE html>
         \`;
 
         const table = content.querySelector("table");
-        updateHeaders(table);
-        table.querySelectorAll("th.sortable").forEach(th => {
-          th.addEventListener("click", () => {
-            const col = th.dataset.col;
-            if (col === "assessment") {
-              assessmentCycle++;
-              if (assessmentCycle >= RISK_LEVELS.length) {
-                assessmentCycle = -1;
-              }
-              dryrunCycle = -1;
-              sortCol = "assessment";
-              sortDir = 1;
-            } else if (col === "dryrun") {
-              dryrunCycle++;
-              if (dryrunCycle >= dryrunLevels.length) {
-                dryrunCycle = -1;
-              }
-              assessmentCycle = -1;
-              sortCol = "dryrun";
-              sortDir = 1;
-            } else if (col === "component") {
-              assessmentCycle = -1;
-              dryrunCycle = -1;
-              componentCycle = sortCol === "component" ? (componentCycle + 1) % 3 : 0;
-              sortCol = "component";
-              sortDir = componentCycle === 1 ? -1 : 1;
-            } else {
-              assessmentCycle = -1;
-              dryrunCycle = -1;
-              componentCycle = 0;
-              if (col === sortCol) {
-                sortDir = -sortDir;
-              } else {
-                sortCol = col;
-                sortDir = 1;
-              }
+        table.querySelectorAll(".dropdown-trigger").forEach((trigger) => {
+          trigger.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const dropdown = trigger.closest(".dropdown");
+            const wasOpen = dropdown.classList.contains("dropdown-open");
+            closeAllDropdowns();
+            if (!wasOpen) {
+              dropdown.classList.add("dropdown-open");
+              trigger.setAttribute("aria-expanded", "true");
             }
+          });
+        });
+
+        table.querySelectorAll(".dropdown-item").forEach((item) => {
+          item.addEventListener("click", () => {
+            const col = item.dataset.col;
+            const value = item.dataset.value;
+            applySort(col, value);
+            closeAllDropdowns();
             renderTable();
           });
         });
       }
+
+      function closeAllDropdowns() {
+        document.querySelectorAll(".dropdown-open").forEach((d) => {
+          d.classList.remove("dropdown-open");
+          const trigger = d.querySelector(".dropdown-trigger");
+          if (trigger) trigger.setAttribute("aria-expanded", "false");
+        });
+      }
+
+      document.addEventListener("click", closeAllDropdowns);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeAllDropdowns();
+      });
 
       const counts = { breaking: 0, update_available: 0, dryrun_success: 0, total: components.length };
       for (const c of components) {
