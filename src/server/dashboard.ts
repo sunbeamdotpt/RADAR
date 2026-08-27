@@ -354,6 +354,12 @@ const html = `<!DOCTYPE html>
       vertical-align: middle;
     }
 
+    th:nth-child(2), td:nth-child(2),
+    th:nth-child(3), td:nth-child(3),
+    th:nth-child(4), td:nth-child(4) {
+      text-align: center;
+    }
+
     footer {
       max-width: 1400px;
       margin: 2rem auto;
@@ -547,11 +553,16 @@ const html = `<!DOCTYPE html>
         ...dryrunLevels.map((status) => ({ value: "status:" + status, label: humanizeSortLabel(status) })),
       ];
 
+      const CVE_OPTIONS = [
+        { value: "none", label: "—" },
+      ];
+
       let sortCol = "assessment";
       let sortDir = 1;
       let componentSort = "name_asc";
       let currentSort = "version_asc";
       let latestSort = "version_asc";
+      let cveSort = "none";
       let assessmentSort = "level:likely_safe";
       let dryrunSort = "status";
 
@@ -632,6 +643,7 @@ const html = `<!DOCTYPE html>
         if (col === "component") componentSort = value;
         if (col === "current") currentSort = value;
         if (col === "latest") latestSort = value;
+        if (col === "cve") cveSort = value;
         if (col === "assessment") assessmentSort = value;
         if (col === "dryrun") dryrunSort = value;
         sortDir = value.endsWith("_desc") ? -1 : 1;
@@ -653,6 +665,7 @@ const html = `<!DOCTYPE html>
               </td>
               <td class="version current">\${escapeHtml(c.current)}</td>
               <td class="version latest">\${latestCell}</td>
+              <td class="version cve">—</td>
               <td>
                 <span class="badge \${badgeClass}"><span aria-hidden="true">\${ASSESSMENT_EMOJI[c.risk_level] || "❓"}</span> \${escapeHtml(c.risk_level)}</span>
                 \${c.risk_reason ? \`<div class="reason">\${escapeHtml(c.risk_reason)}</div>\` : ""}
@@ -673,6 +686,7 @@ const html = `<!DOCTYPE html>
                   <th scope="col">\${renderDropdown("Component", COMPONENT_OPTIONS, componentSort, "component")}</th>
                   <th scope="col">\${renderDropdown("Current", VERSION_OPTIONS, currentSort, "current")}</th>
                   <th scope="col">\${renderDropdown("Latest", VERSION_OPTIONS, latestSort, "latest")}</th>
+                  <th scope="col" class="cve-col">\${renderDropdown("CVE", CVE_OPTIONS, cveSort, "cve")}</th>
                   <th scope="col">\${renderDropdown("Assessment", ASSESSMENT_OPTIONS, assessmentSort, "assessment")}</th>
                   <th scope="col">\${renderDropdown("Dry-run", DRYRUN_OPTIONS, dryrunSort, "dryrun")}</th>
                 </tr>
@@ -732,6 +746,7 @@ const html = `<!DOCTYPE html>
         <div class="stat"><div class="stat-value pulse">\${counts.update_available}</div><div class="stat-label">Updates Available</div></div>
         <div class="stat"><div class="stat-value">\${counts.breaking}</div><div class="stat-label">Breaking Risks</div></div>
         <div class="stat"><div class="stat-value">\${counts.dryrun_success}</div><div class="stat-label">Dry-run Successes</div></div>
+        <div class="stat"><div class="stat-value">—</div><div class="stat-label">CVE</div></div>
       \`;
 
       renderTable();
