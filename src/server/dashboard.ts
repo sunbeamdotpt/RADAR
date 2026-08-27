@@ -133,13 +133,18 @@ const html = `<!DOCTYPE html>
 
     .message.error { border-color: var(--danger); color: var(--danger); }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
+    .table-wrapper {
       background: var(--bg-card);
       border: 1px solid var(--border-default);
       border-radius: 2px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
       overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: transparent;
     }
 
     thead {
@@ -469,18 +474,20 @@ const html = `<!DOCTYPE html>
         }).join("");
 
         content.innerHTML = \`
-          <table role="table" aria-label="RADAR component overview">
-            <thead>
-              <tr>
-                <th scope="col" class="sortable" data-col="component">Component<span class="sort-indicator"></span></th>
-                <th scope="col" class="sortable" data-col="current">Current<span class="sort-indicator"></span></th>
-                <th scope="col" class="sortable" data-col="latest">Latest<span class="sort-indicator"></span></th>
-                <th scope="col" class="sortable" data-col="assessment">Assessment<span class="sort-indicator"></span></th>
-                <th scope="col" class="sortable" data-col="dryrun">Dry-run<span class="sort-indicator"></span></th>
-              </tr>
-            </thead>
-            <tbody>\${rows}</tbody>
-          </table>
+          <div class="table-wrapper">
+            <table role="table" aria-label="RADAR component overview">
+              <thead>
+                <tr>
+                  <th scope="col" class="sortable" data-col="component">Component<span class="sort-indicator"></span></th>
+                  <th scope="col" class="sortable" data-col="current">Current<span class="sort-indicator"></span></th>
+                  <th scope="col" class="sortable" data-col="latest">Latest<span class="sort-indicator"></span></th>
+                  <th scope="col" class="sortable" data-col="assessment">Assessment<span class="sort-indicator"></span></th>
+                  <th scope="col" class="sortable" data-col="dryrun">Dry-run<span class="sort-indicator"></span></th>
+                </tr>
+              </thead>
+              <tbody>\${rows}</tbody>
+            </table>
+          </div>
         \`;
 
         const table = content.querySelector("table");
