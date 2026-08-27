@@ -393,6 +393,7 @@ const html = `<!DOCTYPE html>
       let sortDir = 1;
       let assessmentCycle = -1;
       let dryrunCycle = -1;
+      let componentCycle = 0;
 
       const dryrunLevels = [...new Set(components.map((c) => c.dryrun_status))].sort(
         (a, b) => (DRYRUN_ORDER[a] ?? 99) - (DRYRUN_ORDER[b] ?? 99),
@@ -430,9 +431,14 @@ const html = `<!DOCTYPE html>
         const dir = sortDir;
         let diff = 0;
         switch (sortCol) {
-          case "component":
-            diff = a.name.localeCompare(b.name);
+          case "component": {
+            if (componentCycle === 2) {
+              diff = a.namespace.localeCompare(b.namespace) || a.name.localeCompare(b.name);
+            } else {
+              diff = a.name.localeCompare(b.name);
+            }
             break;
+          }
           case "current":
             diff = compareVersion(a.current, b.current);
             break;
@@ -471,6 +477,8 @@ const html = `<!DOCTYPE html>
           const indicator = th.querySelector(".sort-indicator");
           if (th.dataset.col === sortCol) {
             indicator.textContent = sortDir === 1 ? "▲" : "▼";
+          } else if (th.dataset.col === "component" && componentCycle === 2) {
+            indicator.textContent = "▲";
           } else {
             indicator.textContent = "";
           }
@@ -543,9 +551,16 @@ const html = `<!DOCTYPE html>
               assessmentCycle = -1;
               sortCol = "dryrun";
               sortDir = 1;
+            } else if (col === "component") {
+              assessmentCycle = -1;
+              dryrunCycle = -1;
+              componentCycle = sortCol === "component" ? (componentCycle + 1) % 3 : 0;
+              sortCol = "component";
+              sortDir = componentCycle === 1 ? -1 : 1;
             } else {
               assessmentCycle = -1;
               dryrunCycle = -1;
+              componentCycle = 0;
               if (col === sortCol) {
                 sortDir = -sortDir;
               } else {
