@@ -4,6 +4,7 @@ const html = `<!DOCTYPE html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sunbeam RADAR</title>
+  <link rel="icon" type="image/png" href="/assets/sunbeam.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Ysabeau+Infant:ital,wght@0,1..1000;1,1..1000&display=swap" rel="stylesheet">
@@ -83,8 +84,9 @@ const html = `<!DOCTYPE html>
     h1 .logo {
       height: 1.25em;
       width: auto;
-      margin-right: 0.5rem;
-      vertical-align: middle;
+      margin-left: 0.5rem;
+      vertical-align: text-top;
+      transform: translateY(-0.1em);
     }
 
     .subtitle {
@@ -267,7 +269,7 @@ const html = `<!DOCTYPE html>
   <a href="#main-content" class="skip-link">Skip to main content</a>
   <header>
     <div class="header-inner">
-      <h1><img src="https://wiki.artemis.cdg.sunbeam.pt:8443/images/sunbeam-1x.png" alt="" class="logo"> <span class="accent">Sunbeam</span> RADAR</h1>
+      <h1><span class="accent">Sunbeam</span> RADAR <img src="/assets/sunbeam.png" alt="" class="logo"></h1>
       <p class="subtitle">
         Release Automation &amp; Deployment Asset Registry — tracks the software versions
         pinned in the Sunbeam Kubernetes platform and surfaces upstream drift, risk

@@ -179,6 +179,17 @@ export function createHandler(
       return renderDashboard();
     }
 
+    if (path === "/assets/sunbeam.png") {
+      try {
+        const data = await Deno.readFile("./assets/sunbeam.png");
+        return new Response(data, {
+          headers: { "content-type": "image/png", "cache-control": "public, max-age=3600" },
+        });
+      } catch {
+        return json({ error: "not found" }, 404);
+      }
+    }
+
     if (path === "/__heartbeat__") {
       const healthy = await store.healthCheck();
       return new Response(healthy ? "ok" : "unavailable", {

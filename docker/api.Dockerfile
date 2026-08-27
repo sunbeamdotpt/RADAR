@@ -5,6 +5,7 @@ WORKDIR /app
 
 COPY --chown=deno:deno deno.json deno.lock ./
 COPY --chown=deno:deno src ./src
+COPY --chown=deno:deno assets ./assets
 COPY --chown=deno:deno db ./db
 COPY --chown=deno:deno seed ./seed
 
