@@ -337,7 +337,7 @@ async function runSunbeamRender(
   homeDir: string,
   deps: RunnerDeps,
 ): Promise<CommandResult> {
-  const argv = ["sunbeam", "service", "apply", namespace, "--dry-run", "--quiet"];
+  const argv = ["sunbeam", "service", "apply", namespace, "--dry-run", "--log-mode", "json"];
   const env: Record<string, string> = { HOME: homeDir };
   if (deps.kubeconfig) env.KUBECONFIG = deps.kubeconfig;
   return await runCommand(argv, deps, env);
