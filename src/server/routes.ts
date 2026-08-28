@@ -4,6 +4,7 @@ import { DRYRUN_STATUSES } from "../schema/dryrun.ts";
 import type { AssessmentStore, DryRunStore, Store } from "../store/store.ts";
 import type { ServerConfig } from "./config.ts";
 import { renderDashboard } from "./dashboard.ts";
+import { renderDryRunOutput } from "./dryrun_output.ts";
 import {
   createCounter,
   createGauge,
@@ -177,6 +178,16 @@ export function createHandler(
 
     if (path === "/" && config.dashboardEnabled) {
       return renderDashboard();
+    }
+
+    if (path === "/output" && config.dashboardEnabled) {
+      const report = await store.loadLatestDryRuns();
+      const namespace = url.searchParams.get("namespace");
+      if (!namespace) {
+        return json({ error: "namespace query param required" }, 400);
+      }
+      const dryRun = report?.dry_runs.find((d) => d.namespace === namespace);
+      return renderDryRunOutput(namespace, dryRun);
     }
 
     if (path === "/assets/sunbeam.png") {

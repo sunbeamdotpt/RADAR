@@ -1,0 +1,259 @@
+import type { DryRun } from "../schema/dryrun.ts";
+
+function escapeHtml(str: string): string {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined): Response {
+  if (!dryRun) {
+    return new Response(
+      `<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dry-run not found — Sunbeam RADAR</title>
+  <link rel="icon" type="image/png" href="/assets/sunbeam.png">
+  <style>
+    :root {
+      --bg-page: #1f1f1f;
+      --bg-card: #2a2a2a;
+      --text-primary: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.7);
+      --text-muted: rgba(255, 255, 255, 0.4);
+      --border-default: rgba(255, 161, 16, 0.15);
+      --accent: #fa520f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 2rem;
+      background: var(--bg-page);
+      color: var(--text-primary);
+      font-family: 'Ysabeau Infant', Arial, ui-sans-serif, system-ui, sans-serif;
+      font-weight: 647;
+      line-height: 1.5;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <p>Dry-run for namespace <code>${escapeHtml(namespace)}</code> not found.</p>
+  <p><a href="/">← Back to dashboard</a></p>
+</body>
+</html>`,
+      { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
+    );
+  }
+
+  const statusClass = `status-${dryRun.status}`;
+  const sections = [
+    { title: "Status", content: dryRun.status },
+    { title: "kubectl stdout", content: dryRun.stdout },
+    { title: "kubectl stderr", content: dryRun.stderr },
+    { title: "Sunbeam logs", content: String(dryRun.details?.sunbeam_stderr ?? "") },
+    { title: "Details", content: JSON.stringify(dryRun.details, null, 2) },
+  ];
+
+  const sectionHtml = sections.map((s) => {
+    const hasContent = s.content.trim().length > 0;
+    return `
+      <section>
+        <h2>${escapeHtml(s.title)}</h2>
+        ${hasContent ? `<pre>${escapeHtml(s.content)}</pre>` : `<p class="empty">—</p>`}
+      </section>
+    `;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dry-run ${escapeHtml(namespace)} — Sunbeam RADAR</title>
+  <link rel="icon" type="image/png" href="/assets/sunbeam.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Ysabeau+Infant:ital,wght@0,1..1000;1,1..1000&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-page: #1f1f1f;
+      --bg-card: #2a2a2a;
+      --bg-nav: rgba(31, 31, 31, 0.92);
+      --text-primary: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.7);
+      --text-muted: rgba(255, 255, 255, 0.4);
+      --border-default: rgba(255, 161, 16, 0.15);
+      --accent: #fa520f;
+      --accent-hover: #fb6424;
+      --success: #4ade80;
+      --warning: #facc15;
+      --danger: #ef4444;
+      --info: #60a5fa;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-page);
+      color: var(--text-primary);
+      font-family: 'Ysabeau Infant', Arial, ui-sans-serif, system-ui, sans-serif;
+      font-weight: 647;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; color: var(--accent-hover); }
+
+    header {
+      background: var(--bg-nav);
+      border-bottom: 1px solid var(--border-default);
+      padding: 1.5rem 0;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 791;
+      letter-spacing: -0.025em;
+      text-transform: uppercase;
+    }
+
+    h1 .accent { color: var(--accent); }
+
+    .subtitle {
+      margin: 0.25rem 0 0;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+    }
+
+    main { padding: 2rem 0; }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .namespace {
+      font-size: 1.25rem;
+      font-weight: 791;
+      color: var(--text-primary);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 2px;
+      font-size: 0.75rem;
+      font-weight: 791;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-success { background: rgba(74, 222, 128, 0.12); color: var(--success); border: 1px solid rgba(74, 222, 128, 0.25); }
+    .status-build_failed { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .status-dryrun_failed { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .status-skipped_no_mapping { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
+    .status-skipped_unsupported_source { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
+
+    section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: 2px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+
+    h2 {
+      margin: 0;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 791;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(255, 161, 16, 0.7);
+      background: rgba(255, 161, 16, 0.04);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    pre {
+      margin: 0;
+      padding: 1rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'Monaspace Argon', 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      background: var(--bg-card);
+    }
+
+    .empty {
+      margin: 0;
+      padding: 1rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    footer {
+      max-width: 1400px;
+      margin: 2rem auto;
+      padding: 0 2rem 2rem;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      .container { padding-left: 1rem; padding-right: 1rem; }
+      footer { padding-left: 1rem; padding-right: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1><span class="accent">Sunbeam</span> RADAR</h1>
+      <p class="subtitle">Dry-run output viewer</p>
+    </div>
+  </header>
+  <main>
+    <div class="container">
+      <div class="meta">
+        <span class="namespace">${escapeHtml(namespace)}</span>
+        <span class="status-badge ${statusClass}">${escapeHtml(dryRun.status)}</span>
+        <a href="/">← Back to dashboard</a>
+      </div>
+      ${sectionHtml}
+    </div>
+  </main>
+  <footer>
+    Data refreshes when the inventory, assess, and dry-run jobs run.
+  </footer>
+</body>
+</html>`;
+
+  return new Response(html, {
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
+}

@@ -680,7 +680,7 @@ const html = `<!DOCTYPE html>
                 \${c.risk_reason ? \`<div class="reason">\${escapeHtml(c.risk_reason)}</div>\` : ""}
               </td>
               <td>
-                \${c.dryrun_status === "none" ? "" : \`<span class="badge \${dryrunClass}"><span aria-hidden="true">\${DRYRUN_EMOJI[c.dryrun_status] || "—"}</span> \${escapeHtml(c.dryrun_status)}</span><div class="reason"><a href="/api/v1/dryruns?namespace=\${encodeURIComponent(c.dryrun_namespace)}" target="_blank" rel="noopener">show output</a></div>\`}
+                \${c.dryrun_status === "none" ? "" : \`<span class="badge \${dryrunClass}"><span aria-hidden="true">\${DRYRUN_EMOJI[c.dryrun_status] || "—"}</span> \${escapeHtml(c.dryrun_status)}</span><div class="reason"><a href="/output?namespace=\${encodeURIComponent(c.dryrun_namespace)}" target="_blank" rel="noopener">show output</a></div>\`}
               </td>
             </tr>
           \`;

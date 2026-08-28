@@ -21,6 +21,16 @@ Deno.test("withSpan records errors and rethrows", async () => {
   assertEquals(caught?.message, "boom");
 });
 
+Deno.test("withSpan records async rejection and rethrows", async () => {
+  let caught: Error | undefined;
+  try {
+    await withSpan("async-failing-span", () => Promise.reject(new Error("async boom")));
+  } catch (err) {
+    caught = err as Error;
+  }
+  assertEquals(caught?.message, "async boom");
+});
+
 Deno.test("activeSpanContext is empty when no span is active", () => {
   assertEquals(activeSpanContext(), {});
 });

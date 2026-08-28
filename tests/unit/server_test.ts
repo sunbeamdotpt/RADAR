@@ -1,9 +1,10 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@^1";
 import type { ServerConfig } from "../../src/server/config.ts";
 import { createHandler, resetRouteMetrics } from "../../src/server/routes.ts";
+import { renderDryRunOutput } from "../../src/server/dryrun_output.ts";
 import type { AssessmentReport } from "../../src/schema/assessment.ts";
 import type { InventoryReport } from "../../src/schema/component.ts";
-import type { DryRunReport } from "../../src/schema/dryrun.ts";
+import type { DryRun, DryRunReport } from "../../src/schema/dryrun.ts";
 import type { AssessmentStore, DryRunStore, Store } from "../../src/store/store.ts";
 
 const DEFAULT_CONFIG: ServerConfig = {
@@ -336,7 +337,7 @@ Deno.test("dashboard is served at / when enabled", async () => {
   assertStringIncludes(body, "/api/v1/assessments");
   assertStringIncludes(body, "/api/v1/dryruns");
   assertStringIncludes(body, "show output");
-  assertStringIncludes(body, "/api/v1/dryruns?namespace=");
+  assertStringIncludes(body, "/output?namespace=");
 });
 
 Deno.test("dashboard is hidden at / when disabled", async () => {
@@ -344,4 +345,74 @@ Deno.test("dashboard is hidden at / when disabled", async () => {
   const res = await get(handler, "/");
   assertEquals(res.status, 404);
   assertEquals((await res.json()).error, "not found");
+});
+
+const TEST_DRYRUN: DryRun = {
+  namespace: "oci",
+  components: ["zot"],
+  status: "success",
+  stdout: '{"kind":"List"}\n',
+  stderr: "warning\n",
+  duration_ms: 1234,
+  details: {
+    sunbeam_stderr: '{"level":"INFO"}\n',
+    components: ["zot"],
+  },
+};
+
+Deno.test("renderDryRunOutput renders dry-run sections and escapes HTML", async () => {
+  const res = renderDryRunOutput("oci", {
+    ...TEST_DRYRUN,
+    stdout: "<script>",
+    stderr: '&"',
+    details: { sunbeam_stderr: "line1\nline2" },
+  });
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
+  const body = await res.text();
+  assertStringIncludes(body, "Dry-run oci");
+  assertStringIncludes(body, "status-success");
+  assertStringIncludes(body, "&lt;script&gt;");
+  assertStringIncludes(body, "&amp;&quot;");
+  assertStringIncludes(body, "line1\nline2");
+  assertStringIncludes(body, "← Back to dashboard");
+});
+
+Deno.test("renderDryRunOutput returns 404 when dry-run is missing", async () => {
+  const res = renderDryRunOutput("missing", undefined);
+  assertEquals(res.status, 404);
+  const body = await res.text();
+  assertStringIncludes(body, "Dry-run for namespace");
+  assertStringIncludes(body, "missing");
+});
+
+Deno.test("/output serves dry-run report when dashboard is enabled", async () => {
+  const store = new StubStore(REPORT);
+  store.dryRuns = {
+    generated_at: "2026-08-21 12:00:00 UTC",
+    inventory_generated_at: "2026-08-21 12:00:00 UTC",
+    assessment_generated_at: "2026-08-21 12:00:00 UTC",
+    dry_runs: [TEST_DRYRUN],
+  };
+  const handler = createHandler(store, DEFAULT_CONFIG);
+  const res = await get(handler, "/output?namespace=oci");
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("content-type"), "text/html; charset=utf-8");
+  const body = await res.text();
+  assertStringIncludes(body, "oci");
+  assertStringIncludes(body, "success");
+  assertStringIncludes(body, "kubectl stdout");
+});
+
+Deno.test("/output requires namespace query param", async () => {
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
+  const res = await get(handler, "/output");
+  assertEquals(res.status, 400);
+  assertEquals((await res.json()).error, "namespace query param required");
+});
+
+Deno.test("/output is hidden when dashboard is disabled", async () => {
+  const handler = createHandler(new StubStore(REPORT), DISABLED_DASHBOARD_CONFIG);
+  const res = await get(handler, "/output?namespace=oci");
+  assertEquals(res.status, 404);
 });
