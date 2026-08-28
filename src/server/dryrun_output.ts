@@ -144,7 +144,7 @@ function renderPage(
     .grafana-link:hover { opacity: 1; }
 
     .grafana-logo {
-      height: 1.75rem;
+      height: 1.6875rem;
       width: auto;
     }
 
@@ -172,8 +172,8 @@ function renderPage(
     }
 
     .theme-icon {
-      width: 1.75rem;
-      height: 1.75rem;
+      width: 1.6875rem;
+      height: 1.6875rem;
     }
 
     .radar-glow {

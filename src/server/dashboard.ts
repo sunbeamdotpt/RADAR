@@ -188,7 +188,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
     .grafana-link:hover { opacity: 1; }
 
     .grafana-logo {
-      height: 1.75rem;
+      height: 1.6875rem;
       width: auto;
     }
 
@@ -216,8 +216,8 @@ function renderHtml(grafanaUrl: string | undefined): string {
     }
 
     .theme-icon {
-      width: 1.75rem;
-      height: 1.75rem;
+      width: 1.6875rem;
+      height: 1.6875rem;
     }
 
     .subtitle {
