@@ -129,7 +129,7 @@ export async function runNamespaceDryRun(
 
     const render = await runSunbeamRender(namespace, workDir, deps);
     details.sunbeam_exit_code = render.code;
-    details.sunbeam_stderr = render.stderr;
+    details.sunbeam_stderr = prettyPrintJsonLogs(render.stderr);
     if (!render.success) {
       return result(
         namespace,
@@ -150,7 +150,7 @@ export async function runNamespaceDryRun(
         render.stdout,
         "",
         Date.now() - start,
-        { ...details, build_only: true, sunbeam_stderr: render.stderr },
+        { ...details, build_only: true, sunbeam_stderr: prettyPrintJsonLogs(render.stderr) },
       );
     }
 
@@ -429,6 +429,26 @@ async function copyDir(src: string, dest: string): Promise<void> {
       await Deno.symlink(target, destPath);
     }
   }
+}
+
+/**
+ * Re-format NDJSON log output so each JSON line is pretty-printed. Non-JSON
+ * lines are preserved as-is, so mixed output still renders sensibly.
+ */
+function prettyPrintJsonLogs(stderr: string): string {
+  return stderr
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return "";
+      try {
+        return JSON.stringify(JSON.parse(trimmed), null, 2);
+      } catch {
+        return line;
+      }
+    })
+    .join("\n")
+    .trim();
 }
 
 function skipped(
