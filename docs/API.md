@@ -24,6 +24,8 @@ the dropdown. Components with a dry-run status show a **show output** button tha
 preview of the namespace's dry-run output; the preview includes a link to the full
 `/output?namespace=<ns>` page.
 
+If `RADAR_GRAFANA_URL` is set, a Grafana icon appears in the page header and links to that URL.
+
 When the dashboard is disabled, `GET /` returns `404 {"error":"not found"}` like any unknown path.
 
 ## Probes

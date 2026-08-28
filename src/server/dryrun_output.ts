@@ -8,7 +8,26 @@ function escapeHtml(str: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function renderPage(title: string, mainContent: string, status: number): Response {
+function escapeHtmlServer(str: string): string {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderPage(
+  title: string,
+  mainContent: string,
+  status: number,
+  grafanaUrl?: string,
+): Response {
+  const grafanaLink = grafanaUrl
+    ? `<a href="${
+      escapeHtmlServer(grafanaUrl)
+    }" class="grafana-link" target="_blank" rel="noopener noreferrer" aria-label="Open Grafana dashboard"><img src="/assets/grafana.svg" alt="Grafana" class="grafana-logo"></a>`
+    : "";
   const html = `<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -74,6 +93,31 @@ function renderPage(title: string, mainContent: string, status: number): Respons
       letter-spacing: -0.025em;
       text-transform: uppercase;
       color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    h1 .h1-text {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25em;
+    }
+
+    .grafana-link {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      opacity: 0.85;
+      transition: opacity 0.15s ease;
+    }
+
+    .grafana-link:hover { opacity: 1; }
+
+    .grafana-logo {
+      height: 1.75rem;
+      width: auto;
     }
 
     .radar-glow {
@@ -197,7 +241,10 @@ function renderPage(title: string, mainContent: string, status: number): Respons
 <body>
   <header>
     <div class="header-inner container">
-      <h1><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></h1>
+      <h1>
+        <span class="h1-text"><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></span>
+        ${grafanaLink}
+      </h1>
       <p class="subtitle">Dry-run output viewer</p>
     </div>
   </header>
@@ -218,12 +265,17 @@ function renderPage(title: string, mainContent: string, status: number): Respons
   });
 }
 
-export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined): Response {
+export function renderDryRunOutput(
+  namespace: string,
+  dryRun: DryRun | undefined,
+  grafanaUrl?: string,
+): Response {
   if (!dryRun) {
     return renderPage(
       "Dry-run not found — Sunbeam RADAR",
       `<p>Dry-run for namespace <code>${escapeHtml(namespace)}</code> not found.</p>`,
       404,
+      grafanaUrl,
     );
   }
 
@@ -253,5 +305,5 @@ export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined
     ${sectionHtml}
   `;
 
-  return renderPage(`Dry-run ${namespace} — Sunbeam RADAR`, mainContent, 200);
+  return renderPage(`Dry-run ${namespace} — Sunbeam RADAR`, mainContent, 200, grafanaUrl);
 }

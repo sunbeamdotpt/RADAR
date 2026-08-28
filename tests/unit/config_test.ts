@@ -94,6 +94,7 @@ Deno.test("loadServerConfig defaults and overrides", () => {
     hostname: "0.0.0.0",
     port: 8080,
     dashboardEnabled: true,
+    grafanaUrl: undefined,
   });
   const config = loadServerConfig({
     STORAGE: "postgres",

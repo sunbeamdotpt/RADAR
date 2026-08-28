@@ -48,6 +48,7 @@ docker run -d \
   -e STORAGE=postgres \
   -e DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@radar-dev-db:5432/${PG_DB}?sslmode=disable" \
   -e PORT=8080 \
+  -e RADAR_GRAFANA_URL="${RADAR_GRAFANA_URL:-}" \
   -p 127.0.0.1:8080:8080 \
   sunbeam-radar-api:dev >/dev/null
 

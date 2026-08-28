@@ -178,7 +178,7 @@ export function createHandler(
     }
 
     if (path === "/" && config.dashboardEnabled) {
-      return renderDashboard();
+      return renderDashboard(config.grafanaUrl);
     }
 
     if (path === "/output" && config.dashboardEnabled) {
@@ -188,7 +188,7 @@ export function createHandler(
         return json({ error: "namespace query param required" }, 400);
       }
       const dryRun = report?.dry_runs.find((d) => d.namespace === namespace);
-      return renderDryRunOutput(namespace, dryRun);
+      return renderDryRunOutput(namespace, dryRun, config.grafanaUrl);
     }
 
     if (path === "/assets/sunbeam.png") {
@@ -196,6 +196,17 @@ export function createHandler(
         const data = await Deno.readFile("./assets/sunbeam.png");
         return new Response(data, {
           headers: { "content-type": "image/png", "cache-control": "public, max-age=3600" },
+        });
+      } catch {
+        return json({ error: "not found" }, 404);
+      }
+    }
+
+    if (path === "/assets/grafana.svg") {
+      try {
+        const data = await Deno.readFile("./assets/grafana.svg");
+        return new Response(data, {
+          headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=3600" },
         });
       } catch {
         return json({ error: "not found" }, 404);

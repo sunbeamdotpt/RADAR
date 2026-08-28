@@ -15,6 +15,7 @@ export interface ServerConfig {
   hostname: string;
   port: number;
   dashboardEnabled: boolean;
+  grafanaUrl: string | undefined;
 }
 
 export function loadServerConfig(env: Env): ServerConfig {
@@ -31,5 +32,6 @@ export function loadServerConfig(env: Env): ServerConfig {
     hostname: envString(env, "RADAR_HOST", "0.0.0.0"),
     port,
     dashboardEnabled: envBool(env, "RADAR_DASHBOARD_ENABLED", true),
+    grafanaUrl: envString(env, "RADAR_GRAFANA_URL", "") || undefined,
   };
 }

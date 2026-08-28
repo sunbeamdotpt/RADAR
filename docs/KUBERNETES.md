@@ -16,7 +16,7 @@ cluster.
 deploy/
 ├── kustomization.yaml    # namespace radar; wires images to ghcr.io/sunbeamdotpt/radar-{api,job,dryrun}
 ├── namespace.yaml
-├── config.yaml           # radar-config ConfigMap: STORAGE, DOMAIN_SUFFIX, GIT_BASE_*, RADAR_DASHBOARD_ENABLED, PORT
+├── config.yaml           # radar-config ConfigMap: STORAGE, DOMAIN_SUFFIX, GIT_BASE_*, RADAR_DASHBOARD_ENABLED, RADAR_GRAFANA_URL, PORT
 ├── vault-secrets.yaml    # VaultAuth vso-auth + VaultDynamicSecret radar-db-creds (dsn key)
 ├── api-deployment.yaml   # 1 replica, probes /__lbheartbeat__ + /__heartbeat__
 ├── api-service.yaml      # ClusterIP :8080

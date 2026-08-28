@@ -13,6 +13,7 @@ data:
   GIT_BASE_REQUIRED: "true"
   RADAR_AUTO_DETECT: "false"
   RADAR_DASHBOARD_ENABLED: "true"
+  RADAR_GRAFANA_URL: ""
   PORT: "8080"
   # OpenTelemetry: OTLP export of traces, metrics, and logs. Override the
   # endpoint per cluster to point at your collector (e.g. Grafana Alloy).

@@ -14,6 +14,7 @@ const DEFAULT_CONFIG: ServerConfig = {
   hostname: "0.0.0.0",
   port: 8080,
   dashboardEnabled: true,
+  grafanaUrl: undefined,
 };
 
 const DISABLED_DASHBOARD_CONFIG: ServerConfig = { ...DEFAULT_CONFIG, dashboardEnabled: false };
@@ -349,6 +350,31 @@ Deno.test("dashboard is hidden at / when disabled", async () => {
   assertEquals((await res.json()).error, "not found");
 });
 
+Deno.test("dashboard omits Grafana link when RADAR_GRAFANA_URL is unset", async () => {
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
+  const body = await (await get(handler, "/")).text();
+  assertEquals(body.includes("/assets/grafana.svg"), false);
+  assertEquals(body.includes("Open Grafana dashboard"), false);
+});
+
+Deno.test("dashboard includes Grafana link when RADAR_GRAFANA_URL is set", async () => {
+  const config = { ...DEFAULT_CONFIG, grafanaUrl: "https://metrics.example.com/" };
+  const handler = createHandler(new StubStore(REPORT), config);
+  const body = await (await get(handler, "/")).text();
+  assertStringIncludes(body, "/assets/grafana.svg");
+  assertStringIncludes(body, 'href="https://metrics.example.com/"');
+  assertStringIncludes(body, "Open Grafana dashboard");
+});
+
+Deno.test("/assets/grafana.svg serves the bundled icon", async () => {
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
+  const res = await get(handler, "/assets/grafana.svg");
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("content-type"), "image/svg+xml");
+  const body = await res.text();
+  assertStringIncludes(body, "<svg");
+});
+
 const TEST_DRYRUN: DryRun = {
   namespace: "oci",
   components: ["zot"],
@@ -389,6 +415,19 @@ Deno.test("renderDryRunOutput returns 404 when dry-run is missing", async () => 
   assertStringIncludes(body, "radar-glow");
 });
 
+Deno.test("renderDryRunOutput omits Grafana link when url is unset", async () => {
+  const res = renderDryRunOutput("oci", TEST_DRYRUN);
+  const body = await res.text();
+  assertEquals(body.includes("/assets/grafana.svg"), false);
+});
+
+Deno.test("renderDryRunOutput includes Grafana link when url is set", async () => {
+  const res = renderDryRunOutput("oci", TEST_DRYRUN, "https://metrics.example.com/");
+  const body = await res.text();
+  assertStringIncludes(body, "/assets/grafana.svg");
+  assertStringIncludes(body, 'href="https://metrics.example.com/"');
+});
+
 Deno.test("/output serves dry-run report when dashboard is enabled", async () => {
   const store = new StubStore(REPORT);
   store.dryRuns = {
@@ -405,6 +444,21 @@ Deno.test("/output serves dry-run report when dashboard is enabled", async () =>
   assertStringIncludes(body, "oci");
   assertStringIncludes(body, "success");
   assertStringIncludes(body, "kubectl stdout");
+});
+
+Deno.test("/output includes Grafana link when RADAR_GRAFANA_URL is set", async () => {
+  const store = new StubStore(REPORT);
+  store.dryRuns = {
+    generated_at: "2026-08-21 12:00:00 UTC",
+    inventory_generated_at: "2026-08-21 12:00:00 UTC",
+    assessment_generated_at: "2026-08-21 12:00:00 UTC",
+    dry_runs: [TEST_DRYRUN],
+  };
+  const config = { ...DEFAULT_CONFIG, grafanaUrl: "https://metrics.example.com/" };
+  const handler = createHandler(store, config);
+  const body = await (await get(handler, "/output?namespace=oci")).text();
+  assertStringIncludes(body, "/assets/grafana.svg");
+  assertStringIncludes(body, 'href="https://metrics.example.com/"');
 });
 
 Deno.test("/output requires namespace query param", async () => {

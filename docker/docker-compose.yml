@@ -26,6 +26,7 @@ services:
       STORAGE: postgres
       DATABASE_URL: postgresql://radar:radar-dev@db:5432/radar_db?sslmode=disable
       PORT: "8080"
+      RADAR_GRAFANA_URL: ${RADAR_GRAFANA_URL:-}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:

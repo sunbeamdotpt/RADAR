@@ -17,6 +17,7 @@ const DEFAULT_CONFIG: ServerConfig = {
   hostname: "0.0.0.0",
   port: 8080,
   dashboardEnabled: true,
+  grafanaUrl: undefined,
 };
 
 async function dockerAvailable(): Promise<boolean> {

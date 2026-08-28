@@ -1,4 +1,14 @@
-const html = `<!DOCTYPE html>
+function escapeHtmlServer(str: string): string {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderHtml(grafanaUrl: string | undefined): string {
+  return `<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
@@ -65,6 +75,15 @@ const html = `<!DOCTYPE html>
       z-index: 10;
     }
 
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .header-brand { flex: 1; min-width: 0; }
+
     .container {
       max-width: 1400px;
       margin: 0 auto;
@@ -78,6 +97,16 @@ const html = `<!DOCTYPE html>
       letter-spacing: -0.025em;
       text-transform: uppercase;
       color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    h1 .h1-text {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25em;
     }
 
     .radar-glow {
@@ -98,6 +127,21 @@ const html = `<!DOCTYPE html>
       margin-left: 0.5rem;
       vertical-align: text-top;
       transform: translateY(-0.1em);
+    }
+
+    .grafana-link {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      opacity: 0.85;
+      transition: opacity 0.15s ease;
+    }
+
+    .grafana-link:hover { opacity: 1; }
+
+    .grafana-logo {
+      height: 1.75rem;
+      width: auto;
     }
 
     .subtitle {
@@ -563,12 +607,23 @@ const html = `<!DOCTYPE html>
   <a href="#main-content" class="skip-link">Skip to main content</a>
   <header>
     <div class="header-inner container">
-      <h1><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></h1>
-      <p class="subtitle">
-        Release Automation &amp; Deployment Asset Registry — tracks the software versions
-        pinned in the Sunbeam Kubernetes platform and surfaces upstream drift, risk
-        assessments, and dry-run previews.
-      </p>
+      <div class="header-brand">
+        <h1>
+          <span class="h1-text"><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></span>
+          ${
+    grafanaUrl
+      ? `<a href="${
+        escapeHtmlServer(grafanaUrl)
+      }" class="grafana-link" target="_blank" rel="noopener noreferrer" aria-label="Open Grafana dashboard"><img src="/assets/grafana.svg" alt="Grafana" class="grafana-logo"></a>`
+      : ""
+  }
+        </h1>
+        <p class="subtitle">
+          Release Automation &amp; Deployment Asset Registry — tracks the software versions
+          pinned in the Sunbeam Kubernetes platform and surfaces upstream drift, risk
+          assessments, and dry-run previews.
+        </p>
+      </div>
     </div>
   </header>
   <main id="main-content">
@@ -1019,9 +1074,10 @@ const html = `<!DOCTYPE html>
   </script>
 </body>
 </html>`;
+}
 
-export function renderDashboard(): Response {
-  return new Response(html, {
+export function renderDashboard(grafanaUrl?: string): Response {
+  return new Response(renderHtml(grafanaUrl), {
     headers: { "content-type": "text/html; charset=utf-8" },
   });
 }
