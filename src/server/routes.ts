@@ -191,11 +191,11 @@ export function createHandler(
       return renderDryRunOutput(namespace, dryRun, config.grafanaUrl);
     }
 
-    if (path === "/assets/sunbeam.png") {
+    if (path === "/assets/sunbeam-icon.svg") {
       try {
-        const data = await Deno.readFile("./assets/sunbeam.png");
+        const data = await Deno.readFile("./assets/sunbeam-icon.svg");
         return new Response(data, {
-          headers: { "content-type": "image/png", "cache-control": "public, max-age=3600" },
+          headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=3600" },
         });
       } catch {
         return json({ error: "not found" }, 404);

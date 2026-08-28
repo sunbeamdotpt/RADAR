@@ -17,7 +17,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   ${themeInitScript()}
   <title>Sunbeam RADAR</title>
-  <link rel="icon" type="image/png" href="/assets/sunbeam.png">
+  <link rel="icon" type="image/svg+xml" href="/assets/sunbeam-icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Ysabeau+Infant:ital,wght@0,1..1000;1,1..1000&display=swap" rel="stylesheet">
@@ -170,7 +170,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
     h1 .accent { color: var(--accent); }
 
     h1 .logo {
-      height: 1.25em;
+      height: 1.6875rem;
       width: auto;
       margin-left: 0.5rem;
       vertical-align: text-top;
@@ -693,7 +693,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
     <div class="header-inner container">
       <div class="header-brand">
         <h1>
-          <span class="h1-text"><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></span>
+          <span class="h1-text"><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam-icon.svg" alt="" class="logo"></span>
           <span class="header-actions">
             ${
     grafanaUrl

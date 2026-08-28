@@ -374,11 +374,22 @@ Deno.test("dashboard includes theme toggle and data-theme support", async () => 
   assertStringIncludes(body, 'id="theme-icon"');
   assertStringIncludes(body, "localStorage.getItem('radar-theme')");
   assertStringIncludes(body, "document.documentElement.dataset.theme");
+  assertStringIncludes(body, 'href="/assets/sunbeam-icon.svg"');
+  assertStringIncludes(body, 'src="/assets/sunbeam-icon.svg"');
 });
 
 Deno.test("/assets/grafana.svg serves the bundled icon", async () => {
   const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
   const res = await get(handler, "/assets/grafana.svg");
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("content-type"), "image/svg+xml");
+  const body = await res.text();
+  assertStringIncludes(body, "<svg");
+});
+
+Deno.test("/assets/sunbeam-icon.svg serves the bundled logo", async () => {
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
+  const res = await get(handler, "/assets/sunbeam-icon.svg");
   assertEquals(res.status, 200);
   assertEquals(res.headers.get("content-type"), "image/svg+xml");
   const body = await res.text();
@@ -484,6 +495,8 @@ Deno.test("/output includes theme toggle and data-theme support", async () => {
   assertStringIncludes(body, 'data-theme="dark"');
   assertStringIncludes(body, 'id="theme-toggle"');
   assertStringIncludes(body, "localStorage.getItem('radar-theme')");
+  assertStringIncludes(body, 'href="/assets/sunbeam-icon.svg"');
+  assertStringIncludes(body, 'src="/assets/sunbeam-icon.svg"');
 });
 
 Deno.test("/output requires namespace query param", async () => {
