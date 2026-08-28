@@ -436,6 +436,24 @@ const html = `<!DOCTYPE html>
     .modal-body {
       padding: 1.25rem;
       overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 161, 16, 0.25) rgba(0, 0, 0, 0.25);
+    }
+
+    .modal-body::-webkit-scrollbar { width: 8px; }
+
+    .modal-body::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 4px;
+    }
+
+    .modal-body::-webkit-scrollbar-thumb {
+      background: rgba(255, 161, 16, 0.25);
+      border-radius: 4px;
+    }
+
+    .modal-body::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 161, 16, 0.4);
     }
 
     .modal-body .meta {
