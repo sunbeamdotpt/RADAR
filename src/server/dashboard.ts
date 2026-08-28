@@ -369,6 +369,169 @@ const html = `<!DOCTYPE html>
       text-align: center;
     }
 
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal-window {
+      width: 100%;
+      max-width: 900px;
+      max-height: calc(100vh - 4rem);
+      background: rgba(42, 42, 42, 0.96);
+      border: 1px solid var(--border-default);
+      border-radius: 2px;
+      box-shadow: 0 16px 64px rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border-default);
+      background: rgba(255, 161, 16, 0.04);
+    }
+
+    .modal-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 791;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(255, 161, 16, 0.9);
+    }
+
+    .modal-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.25rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0.25rem;
+    }
+
+    .modal-close:hover { color: var(--text-primary); }
+
+    .modal-body {
+      padding: 1.25rem;
+      overflow-y: auto;
+    }
+
+    .modal-body .meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .modal-body .namespace {
+      font-size: 1.125rem;
+      font-weight: 791;
+      color: var(--text-primary);
+    }
+
+    .modal-body .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 2px;
+      font-size: 0.6875rem;
+      font-weight: 791;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .modal-body .status-success { background: rgba(74, 222, 128, 0.12); color: var(--success); border: 1px solid rgba(74, 222, 128, 0.25); }
+    .modal-body .status-build_failed { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .modal-body .status-dryrun_failed { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .modal-body .status-skipped_no_mapping { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
+    .modal-body .status-skipped_unsupported_source { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
+
+    .modal-body section {
+      background: rgba(31, 31, 31, 0.6);
+      border: 1px solid var(--border-default);
+      border-radius: 2px;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+
+    .modal-body h2 {
+      margin: 0;
+      padding: 0.625rem 0.875rem;
+      font-size: 0.6875rem;
+      font-weight: 791;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(255, 161, 16, 0.7);
+      background: rgba(255, 161, 16, 0.04);
+      border-bottom: 1px solid var(--border-default);
+    }
+
+    .modal-body pre {
+      margin: 0;
+      padding: 0.875rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'Monaspace Argon', 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.75rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    .modal-body .empty {
+      margin: 0;
+      padding: 0.875rem;
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.8125rem;
+    }
+
+    .output-link {
+      font-size: 0.75rem;
+      font-weight: 647;
+    }
+
+    .output-preview-trigger {
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: var(--accent);
+      font-family: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .output-preview-trigger:hover {
+      text-decoration: underline;
+      color: var(--accent-hover);
+    }
+
     @media (max-width: 768px) {
       .container { padding-left: 1rem; padding-right: 1rem; }
       footer { padding-left: 1rem; padding-right: 1rem; }
@@ -397,6 +560,20 @@ const html = `<!DOCTYPE html>
       </div>
     </div>
   </main>
+  <div id="output-modal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-window" role="dialog" aria-modal="true" aria-labelledby="output-modal-title">
+      <div class="modal-header">
+        <h2 id="output-modal-title" class="modal-title">Dry-run output</h2>
+        <div class="modal-actions">
+          <a id="output-modal-full" href="#" target="_blank" rel="noopener" class="output-link">View full output</a>
+          <button type="button" id="output-modal-close" class="modal-close" aria-label="Close">×</button>
+        </div>
+      </div>
+      <div id="output-modal-body" class="modal-body">
+        <div class="message">Loading…</div>
+      </div>
+    </div>
+  </div>
   <footer>
     Data refreshes when the inventory, assess, and dry-run jobs run.
     <span id="generated-at"></span>
@@ -680,7 +857,7 @@ const html = `<!DOCTYPE html>
                 \${c.risk_reason ? \`<div class="reason">\${escapeHtml(c.risk_reason)}</div>\` : ""}
               </td>
               <td>
-                \${c.dryrun_status === "none" ? "" : \`<span class="badge \${dryrunClass}"><span aria-hidden="true">\${DRYRUN_EMOJI[c.dryrun_status] || "—"}</span> \${escapeHtml(c.dryrun_status)}</span><div class="reason"><a href="/output?namespace=\${encodeURIComponent(c.dryrun_namespace)}" target="_blank" rel="noopener">show output</a></div>\`}
+                \${c.dryrun_status === "none" ? "" : \`<span class="badge \${dryrunClass}"><span aria-hidden="true">\${DRYRUN_EMOJI[c.dryrun_status] || "—"}</span> \${escapeHtml(c.dryrun_status)}</span><div class="reason"><button type="button" class="output-preview-trigger" data-namespace="\${encodeURIComponent(c.dryrun_namespace)}">show output</button></div>\`}
               </td>
             </tr>
           \`;
@@ -739,7 +916,57 @@ const html = `<!DOCTYPE html>
 
       document.addEventListener("click", closeAllDropdowns);
       document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") closeAllDropdowns();
+        if (e.key === "Escape") {
+          closeAllDropdowns();
+          closeOutputModal();
+        }
+      });
+
+      const modal = document.getElementById("output-modal");
+      const modalBody = document.getElementById("output-modal-body");
+      const modalTitle = document.getElementById("output-modal-title");
+      const modalFull = document.getElementById("output-modal-full");
+      const modalClose = document.getElementById("output-modal-close");
+
+      function openOutputModal(namespace) {
+        const url = \`/output?namespace=\${encodeURIComponent(namespace)}\`;
+        modalFull.href = url;
+        modalTitle.textContent = \`Dry-run \${namespace}\`;
+        modalBody.innerHTML = '<div class="message">Loading dry-run output…</div>';
+        modal.classList.add("open");
+        modal.setAttribute("aria-hidden", "false");
+        modalClose.focus();
+
+        fetch(url)
+          .then((res) => res.text())
+          .then((html) => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            const main = doc.querySelector("main .container");
+            modalBody.innerHTML = main ? main.innerHTML : '<div class="message error">Unable to load output preview.</div>';
+          })
+          .catch(() => {
+            modalBody.innerHTML = '<div class="message error">Failed to load dry-run output.</div>';
+          });
+      }
+
+      function closeOutputModal() {
+        modal.classList.remove("open");
+        modal.setAttribute("aria-hidden", "true");
+        modalBody.innerHTML = '<div class="message">Loading…</div>';
+      }
+
+      modalClose.addEventListener("click", closeOutputModal);
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeOutputModal();
+      });
+
+      content.addEventListener("click", (e) => {
+        const trigger = e.target.closest(".output-preview-trigger");
+        if (!trigger) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openOutputModal(trigger.dataset.namespace);
       });
 
       const counts = { breaking: 0, update_available: 0, dryrun_success: 0, total: components.length };
@@ -751,10 +978,10 @@ const html = `<!DOCTYPE html>
 
       statusBar.innerHTML = \`
         <div class="stat"><div class="stat-value">\${counts.total}</div><div class="stat-label">Components</div></div>
-        <div class="stat"><div class="stat-value pulse">\${counts.update_available}</div><div class="stat-label">Updates Available</div></div>
+        <div class="stat"><div class="stat-value \${counts.update_available > 0 ? 'pulse' : ''}">\${counts.update_available}</div><div class="stat-label">Updates Available</div></div>
+        <div class="stat"><div class="stat-value">—</div><div class="stat-label">CVE</div></div>
         <div class="stat"><div class="stat-value">\${counts.breaking}</div><div class="stat-label">Breaking Risks</div></div>
         <div class="stat"><div class="stat-value">\${counts.dryrun_success}</div><div class="stat-label">Dry-run Successes</div></div>
-        <div class="stat"><div class="stat-value">—</div><div class="stat-label">CVE</div></div>
       \`;
 
       renderTable();

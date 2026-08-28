@@ -56,6 +56,9 @@ function renderPage(title: string, mainContent: string, status: number): Respons
       background: var(--bg-nav);
       border-bottom: 1px solid var(--border-default);
       padding: 1.5rem 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
     .container {
@@ -217,8 +220,7 @@ export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined
   if (!dryRun) {
     return renderPage(
       "Dry-run not found — Sunbeam RADAR",
-      `<p>Dry-run for namespace <code>${escapeHtml(namespace)}</code> not found.</p>
-      <p><a href="/">← Back to dashboard</a></p>`,
+      `<p>Dry-run for namespace <code>${escapeHtml(namespace)}</code> not found.</p>`,
       404,
     );
   }
@@ -246,7 +248,6 @@ export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined
     <div class="meta">
       <span class="namespace">${escapeHtml(namespace)}</span>
       <span class="status-badge ${statusClass}">${escapeHtml(dryRun.status)}</span>
-      <a href="/">← Back to dashboard</a>
     </div>
     ${sectionHtml}
   `;

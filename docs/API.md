@@ -18,9 +18,11 @@ at the root path. It renders each tracked component, its current and latest vers
 assessment, dry-run status, and an emoji status indicator, styled with the Beam dark theme. The page
 fetches `/api/v1/components`, `/api/v1/assessments`, and `/api/v1/dryruns` client-side.
 
-All table headers are clickable to sort the rows. The default sort is assessment severity
-(most-urgent first), then component name; subsequent clicks toggle ascending/descending order and
-show a small ▲/▼ indicator on the active column.
+Each table header has a dropdown menu for sorting. The default sort is assessment severity
+(most-urgent first), then component name; select ascending/descending order or a specific value from
+the dropdown. Components with a dry-run status show a **show output** button that opens a modal
+preview of the namespace's dry-run output; the preview includes a link to the full
+`/output?namespace=<ns>` page.
 
 When the dashboard is disabled, `GET /` returns `404 {"error":"not found"}` like any unknown path.
 
@@ -31,6 +33,7 @@ When the dashboard is disabled, `GET /` returns `404 {"error":"not found"}` like
 | `GET /__lbheartbeat__` | Liveness (cluster contract)           | `200 ok` (text)         | —                          |
 | `GET /__heartbeat__`   | Readiness — checks store reachability | `200 ok` (text)         | `503 unavailable`          |
 | `GET /health`          | JSON health summary                   | `200 {"status":"ok",…}` | `503 {"status":"error",…}` |
+| `GET /metrics`         | Prometheus text metrics               | `200` (text/plain)      | —                          |
 
 ## Inventory
 
@@ -192,6 +195,17 @@ One dry-run result, looked up by Kubernetes namespace (URL-encoded).
 ```
 
 `404 {"error":"dry-run not found: {namespace}"}` when absent.
+
+## Dry-run output viewer
+
+### `GET /output?namespace=<ns>`
+
+When the dashboard is enabled, this returns a human-readable HTML page for a single namespace's
+dry-run output. It shows the namespace, status badge, and collapsible sections for `kubectl stdout`,
+`kubectl stderr`, `Sunbeam logs`, and the raw `details` JSON.
+
+`400 {"error":"namespace query param required"}` if `namespace` is missing.
+`404 {"error":"dry-run not found: {namespace}"}` when the namespace has no dry-run record.
 
 ## Errors
 

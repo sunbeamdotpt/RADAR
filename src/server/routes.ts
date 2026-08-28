@@ -159,6 +159,7 @@ async function refreshBusinessMetrics(
  *   GET /api/v1/assessments/{name}           single assessment
  *   GET /api/v1/dryruns[?status=…]           latest dry-run report (optionally filtered)
  *   GET /api/v1/dryruns/{name}               single dry-run result
+ *   GET /output?namespace=<ns>               human-readable dry-run output (dashboard only)
  */
 export function createHandler(
   store: Store & AssessmentStore & DryRunStore,

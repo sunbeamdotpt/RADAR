@@ -337,7 +337,9 @@ Deno.test("dashboard is served at / when enabled", async () => {
   assertStringIncludes(body, "/api/v1/assessments");
   assertStringIncludes(body, "/api/v1/dryruns");
   assertStringIncludes(body, "show output");
-  assertStringIncludes(body, "/output?namespace=");
+  assertStringIncludes(body, 'id="output-modal"');
+  assertStringIncludes(body, "output-preview-trigger");
+  assertStringIncludes(body, "data-namespace=");
 });
 
 Deno.test("dashboard is hidden at / when disabled", async () => {
@@ -375,7 +377,6 @@ Deno.test("renderDryRunOutput renders dry-run sections and escapes HTML", async 
   assertStringIncludes(body, "&lt;script&gt;");
   assertStringIncludes(body, "&amp;&quot;");
   assertStringIncludes(body, "line1\nline2");
-  assertStringIncludes(body, "← Back to dashboard");
   assertStringIncludes(body, "radar-glow");
 });
 
