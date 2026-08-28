@@ -190,6 +190,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
     .grafana-logo {
       height: 1.5rem;
       width: auto;
+      transform: translateY(-0.1em);
     }
 
     .header-actions {
@@ -218,6 +219,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
     .theme-icon {
       width: 1.5rem;
       height: 1.5rem;
+      transform: translateY(-0.1em);
     }
 
     .subtitle {

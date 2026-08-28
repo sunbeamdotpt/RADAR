@@ -146,6 +146,7 @@ function renderPage(
     .grafana-logo {
       height: 1.5rem;
       width: auto;
+      transform: translateY(-0.1em);
     }
 
     .header-actions {
@@ -174,6 +175,7 @@ function renderPage(
     .theme-icon {
       width: 1.5rem;
       height: 1.5rem;
+      transform: translateY(-0.1em);
     }
 
     .radar-glow {
