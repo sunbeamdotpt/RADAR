@@ -441,6 +441,7 @@ const html = `<!DOCTYPE html>
     .modal-body .meta {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 1rem;
       margin-bottom: 1rem;
       flex-wrap: wrap;
@@ -931,7 +932,7 @@ const html = `<!DOCTYPE html>
       function openOutputModal(namespace) {
         const url = \`/output?namespace=\${encodeURIComponent(namespace)}\`;
         modalFull.href = url;
-        modalTitle.textContent = \`Dry-run \${namespace}\`;
+        modalTitle.textContent = \`Dry-run: \${namespace}\`;
         modalBody.innerHTML = '<div class="message">Loading dry-run output…</div>';
         modal.classList.add("open");
         modal.setAttribute("aria-hidden", "false");

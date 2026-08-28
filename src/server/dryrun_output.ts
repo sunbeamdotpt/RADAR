@@ -108,6 +108,7 @@ function renderPage(title: string, mainContent: string, status: number): Respons
     .meta {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 1rem;
       margin-bottom: 1.5rem;
       flex-wrap: wrap;
@@ -227,7 +228,6 @@ export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined
 
   const statusClass = `status-${dryRun.status}`;
   const sections = [
-    { title: "Status", content: dryRun.status },
     { title: "kubectl stdout", content: dryRun.stdout },
     { title: "kubectl stderr", content: dryRun.stderr },
     { title: "Sunbeam logs", content: String(dryRun.details?.sunbeam_stderr ?? "") },
