@@ -142,6 +142,7 @@ function renderPage(title: string, mainContent: string, status: number): Respons
       background: var(--bg-card);
       border: 1px solid var(--border-default);
       border-radius: 2px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
       margin-bottom: 1rem;
       overflow: hidden;
     }
