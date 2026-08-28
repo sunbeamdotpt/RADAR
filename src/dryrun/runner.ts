@@ -129,6 +129,7 @@ export async function runNamespaceDryRun(
 
     const render = await runSunbeamRender(namespace, workDir, deps);
     details.sunbeam_exit_code = render.code;
+    details.sunbeam_stderr = render.stderr;
     if (!render.success) {
       return result(
         namespace,
@@ -149,7 +150,7 @@ export async function runNamespaceDryRun(
         render.stdout,
         "",
         Date.now() - start,
-        { ...details, build_only: true },
+        { ...details, build_only: true, sunbeam_stderr: render.stderr },
       );
     }
 
@@ -351,6 +352,8 @@ async function runKubectlDryRun(renderedPath: string, deps: RunnerDeps): Promise
     "--force-conflicts",
     "--dry-run=server",
     "--request-timeout=5m",
+    "-o",
+    "json",
     "-f",
     renderedPath,
   ];
