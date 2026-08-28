@@ -82,7 +82,7 @@ the data model and [docs/API.md](docs/API.md) for endpoints.
 | `RADAR_FETCH_RETRIES`       | `1`                                          | Number of retries for timeout/5xx/transport errors (4xx is not retried)         |
 | `RADAR_HOST` / `PORT`       | `0.0.0.0` / `8080`                           | API bind address                                                                |
 | `RADAR_DASHBOARD_ENABLED`   | `true`                                       | Serve the HTML landing dashboard at `/`                                         |
-| `RADAR_GRAFANA_URL`         | *(unset)*                                    | If set, show a Grafana icon in the header linking to this URL                   |
+| `RADAR_GRAFANA_URL`         | _(unset)_                                    | If set, show a Grafana icon in the header linking to this URL                   |
 | `RADAR_ASSESS_UPDATES_ONLY` | `false`                                      | Assess only components with `update_available`                                  |
 | `RADAR_ASSESS_JSON_PATH`    | `./data/component-versions.assessments.json` | Dev JSON assessment store; also a mirror when `STORAGE=postgres`                |
 | `RADAR_DRYRUN_KUBECONFIG`   | `~/.kube/config` if present                  | Absolute path to a kubeconfig for dev dry-runs (read-only mount; auto-detected) |

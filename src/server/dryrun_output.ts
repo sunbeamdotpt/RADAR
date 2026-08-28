@@ -1,4 +1,5 @@
 import type { DryRun } from "../schema/dryrun.ts";
+import { themeInitScript, themeToggleButton, themeToggleScript } from "./theme.ts";
 
 function escapeHtml(str: string): string {
   return String(str)
@@ -33,6 +34,7 @@ function renderPage(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${themeInitScript()}
   <title>${escapeHtml(title)}</title>
   <link rel="icon" type="image/png" href="/assets/sunbeam.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -53,6 +55,32 @@ function renderPage(
       --warning: #facc15;
       --danger: #ef4444;
       --info: #60a5fa;
+      --sunshine-700: #ffa110;
+      --sunshine-500: #ffb83e;
+      --sunshine-300: #ffd06a;
+      --beam-gold: #ffe295;
+      --warm-subtle-bg: rgba(255, 161, 16, 0.04);
+    }
+
+    html[data-theme="light"] {
+      --bg-page: #fff8e0;
+      --bg-card: #fff0c2;
+      --bg-nav: rgba(255, 248, 224, 0.92);
+      --text-primary: #1f1f1f;
+      --text-secondary: rgba(31, 31, 31, 0.7);
+      --text-muted: rgba(31, 31, 31, 0.5);
+      --border-default: rgba(127, 99, 21, 0.2);
+      --accent: #fa520f;
+      --accent-hover: #fb6424;
+      --success: #15803d;
+      --warning: #a16207;
+      --danger: #b91c1c;
+      --info: #1d4ed8;
+      --sunshine-700: #b45309;
+      --sunshine-500: #f59e0b;
+      --sunshine-300: #fbbf24;
+      --beam-gold: #d97706;
+      --warm-subtle-bg: rgba(127, 99, 21, 0.06);
     }
 
     * { box-sizing: border-box; }
@@ -120,6 +148,34 @@ function renderPage(
       width: auto;
     }
 
+    .header-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .theme-toggle {
+      background: transparent;
+      border: 0;
+      padding: 0.25rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s ease;
+    }
+
+    .theme-toggle:hover {
+      color: var(--accent);
+    }
+
+    .theme-icon {
+      width: 1.75rem;
+      height: 1.75rem;
+    }
+
     .radar-glow {
       text-shadow: 0 0 18px rgba(250, 82, 15, 0.35), 0 0 42px rgba(250, 82, 15, 0.12);
       animation: radar-glow 3s ease-in-out infinite;
@@ -182,6 +238,9 @@ function renderPage(
     .status-skipped_no_mapping { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
     .status-skipped_unsupported_source { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
 
+    html[data-theme="light"] .status-skipped_no_mapping { background: rgba(127, 99, 21, 0.08); }
+    html[data-theme="light"] .status-skipped_unsupported_source { background: rgba(127, 99, 21, 0.08); }
+
     section {
       background: var(--bg-card);
       border: 1px solid var(--border-default);
@@ -198,8 +257,8 @@ function renderPage(
       font-weight: 791;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: rgba(255, 161, 16, 0.7);
-      background: rgba(255, 161, 16, 0.04);
+      color: var(--sunshine-700);
+      background: var(--warm-subtle-bg);
       border-bottom: 1px solid var(--border-default);
     }
 
@@ -243,7 +302,10 @@ function renderPage(
     <div class="header-inner container">
       <h1>
         <span class="h1-text"><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></span>
-        ${grafanaLink}
+        <span class="header-actions">
+          ${grafanaLink}
+          ${themeToggleButton()}
+        </span>
       </h1>
       <p class="subtitle">Dry-run output viewer</p>
     </div>
@@ -256,6 +318,7 @@ function renderPage(
   <footer>
     Data refreshes when the inventory, assess, and dry-run jobs run.
   </footer>
+  ${themeToggleScript()}
 </body>
 </html>`;
 

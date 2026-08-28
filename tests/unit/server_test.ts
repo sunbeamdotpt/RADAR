@@ -366,6 +366,16 @@ Deno.test("dashboard includes Grafana link when RADAR_GRAFANA_URL is set", async
   assertStringIncludes(body, "Open Grafana dashboard");
 });
 
+Deno.test("dashboard includes theme toggle and data-theme support", async () => {
+  const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
+  const body = await (await get(handler, "/")).text();
+  assertStringIncludes(body, 'data-theme="dark"');
+  assertStringIncludes(body, 'id="theme-toggle"');
+  assertStringIncludes(body, 'id="theme-icon"');
+  assertStringIncludes(body, "localStorage.getItem('radar-theme')");
+  assertStringIncludes(body, "document.documentElement.dataset.theme");
+});
+
 Deno.test("/assets/grafana.svg serves the bundled icon", async () => {
   const handler = createHandler(new StubStore(REPORT), DEFAULT_CONFIG);
   const res = await get(handler, "/assets/grafana.svg");
@@ -459,6 +469,21 @@ Deno.test("/output includes Grafana link when RADAR_GRAFANA_URL is set", async (
   const body = await (await get(handler, "/output?namespace=oci")).text();
   assertStringIncludes(body, "/assets/grafana.svg");
   assertStringIncludes(body, 'href="https://metrics.example.com/"');
+});
+
+Deno.test("/output includes theme toggle and data-theme support", async () => {
+  const store = new StubStore(REPORT);
+  store.dryRuns = {
+    generated_at: "2026-08-21 12:00:00 UTC",
+    inventory_generated_at: "2026-08-21 12:00:00 UTC",
+    assessment_generated_at: "2026-08-21 12:00:00 UTC",
+    dry_runs: [TEST_DRYRUN],
+  };
+  const handler = createHandler(store, DEFAULT_CONFIG);
+  const body = await (await get(handler, "/output?namespace=oci")).text();
+  assertStringIncludes(body, 'data-theme="dark"');
+  assertStringIncludes(body, 'id="theme-toggle"');
+  assertStringIncludes(body, "localStorage.getItem('radar-theme')");
 });
 
 Deno.test("/output requires namespace query param", async () => {

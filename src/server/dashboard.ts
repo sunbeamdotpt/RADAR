@@ -1,3 +1,5 @@
+import { themeInitScript, themeToggleButton, themeToggleScript } from "./theme.ts";
+
 function escapeHtmlServer(str: string): string {
   return String(str)
     .replaceAll("&", "&amp;")
@@ -13,6 +15,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${themeInitScript()}
   <title>Sunbeam RADAR</title>
   <link rel="icon" type="image/png" href="/assets/sunbeam.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -38,6 +41,41 @@ function renderHtml(grafanaUrl: string | undefined): string {
       --warning: #facc15;
       --danger: #ef4444;
       --info: #60a5fa;
+      --table-head-bg: rgba(255, 161, 16, 0.08);
+      --table-row-hover: rgba(255, 161, 16, 0.04);
+      --warm-subtle-bg: rgba(255, 161, 16, 0.04);
+      --modal-section-bg: rgba(31, 31, 31, 0.6);
+      --scrollbar-thumb: rgba(255, 161, 16, 0.25);
+      --scrollbar-track: rgba(0, 0, 0, 0.25);
+      --scrollbar-thumb-hover: rgba(255, 161, 16, 0.4);
+    }
+
+    html[data-theme="light"] {
+      --bg-page: #fff8e0;
+      --bg-card: #fff0c2;
+      --bg-nav: rgba(255, 248, 224, 0.92);
+      --text-primary: #1f1f1f;
+      --text-secondary: rgba(31, 31, 31, 0.7);
+      --text-muted: rgba(31, 31, 31, 0.5);
+      --border-default: rgba(127, 99, 21, 0.2);
+      --border-subtle: rgba(127, 99, 21, 0.1);
+      --accent: #fa520f;
+      --accent-hover: #fb6424;
+      --sunshine-700: #b45309;
+      --sunshine-500: #f59e0b;
+      --sunshine-300: #fbbf24;
+      --beam-gold: #d97706;
+      --success: #15803d;
+      --warning: #a16207;
+      --danger: #b91c1c;
+      --info: #1d4ed8;
+      --table-head-bg: rgba(127, 99, 21, 0.08);
+      --table-row-hover: rgba(127, 99, 21, 0.06);
+      --warm-subtle-bg: rgba(127, 99, 21, 0.06);
+      --modal-section-bg: rgba(255, 248, 224, 0.6);
+      --scrollbar-thumb: rgba(127, 99, 21, 0.35);
+      --scrollbar-track: rgba(127, 99, 21, 0.1);
+      --scrollbar-thumb-hover: rgba(127, 99, 21, 0.5);
     }
 
     * { box-sizing: border-box; }
@@ -144,6 +182,34 @@ function renderHtml(grafanaUrl: string | undefined): string {
       width: auto;
     }
 
+    .header-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .theme-toggle {
+      background: transparent;
+      border: 0;
+      padding: 0.25rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s ease;
+    }
+
+    .theme-toggle:hover {
+      color: var(--accent);
+    }
+
+    .theme-icon {
+      width: 1.75rem;
+      height: 1.75rem;
+    }
+
     .subtitle {
       margin: 0.5rem 0 0;
       color: var(--text-secondary);
@@ -219,7 +285,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
     }
 
     thead {
-      background: rgba(255, 161, 16, 0.08);
+      background: var(--table-head-bg);
       border-bottom: 1px solid var(--border-default);
     }
 
@@ -239,7 +305,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
 
     tbody tr { border-bottom: 1px solid var(--border-subtle); }
     tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover { background: rgba(255, 161, 16, 0.04); }
+    tbody tr:hover { background: var(--table-row-hover); }
 
     .component-name {
       font-weight: 791;
@@ -289,6 +355,14 @@ function renderHtml(grafanaUrl: string | undefined): string {
     .badge-dryrun-skipped_no_mapping { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
     .badge-dryrun-skipped_unsupported_source { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
     .badge-dryrun-none { background: transparent; color: var(--text-muted); border: 1px dashed var(--border-default); }
+
+    html[data-theme="light"] .badge-eol_warning { color: var(--sunshine-700); }
+    html[data-theme="light"] .badge-floating_tag { color: #7c3aed; }
+    html[data-theme="light"] .badge-custom_fork { color: #7c3aed; }
+    html[data-theme="light"] .badge-unknown { background: rgba(127, 99, 21, 0.08); }
+    html[data-theme="light"] .badge-non_applicable { background: rgba(127, 99, 21, 0.06); }
+    html[data-theme="light"] .badge-dryrun-skipped_no_mapping { background: rgba(127, 99, 21, 0.08); }
+    html[data-theme="light"] .badge-dryrun-skipped_unsupported_source { background: rgba(127, 99, 21, 0.08); }
 
     .reason {
       font-size: 0.75rem;
@@ -431,7 +505,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
       width: 100%;
       max-width: 900px;
       max-height: calc(100vh - 4rem);
-      background: rgba(42, 42, 42, 0.96);
+      background: var(--bg-card);
       border: 1px solid var(--border-default);
       border-radius: 2px;
       box-shadow: 0 16px 64px rgba(0, 0, 0, 0.55);
@@ -447,7 +521,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
       gap: 1rem;
       padding: 1rem 1.25rem;
       border-bottom: 1px solid var(--border-default);
-      background: rgba(255, 161, 16, 0.04);
+      background: var(--warm-subtle-bg);
     }
 
     .modal-title {
@@ -456,7 +530,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
       font-weight: 791;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: rgba(255, 161, 16, 0.9);
+      color: var(--sunshine-700);
     }
 
     .modal-actions {
@@ -481,23 +555,23 @@ function renderHtml(grafanaUrl: string | undefined): string {
       padding: 1.25rem;
       overflow-y: auto;
       scrollbar-width: thin;
-      scrollbar-color: rgba(255, 161, 16, 0.25) rgba(0, 0, 0, 0.25);
+      scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
     }
 
     .modal-body::-webkit-scrollbar { width: 8px; }
 
     .modal-body::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.25);
+      background: var(--scrollbar-track);
       border-radius: 4px;
     }
 
     .modal-body::-webkit-scrollbar-thumb {
-      background: rgba(255, 161, 16, 0.25);
+      background: var(--scrollbar-thumb);
       border-radius: 4px;
     }
 
     .modal-body::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 161, 16, 0.4);
+      background: var(--scrollbar-thumb-hover);
     }
 
     .modal-body .meta {
@@ -534,7 +608,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
     .modal-body .status-skipped_unsupported_source { background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border-default); }
 
     .modal-body section {
-      background: rgba(31, 31, 31, 0.6);
+      background: var(--modal-section-bg);
       border: 1px solid var(--border-default);
       border-radius: 2px;
       margin-bottom: 0.75rem;
@@ -548,8 +622,8 @@ function renderHtml(grafanaUrl: string | undefined): string {
       font-weight: 791;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: rgba(255, 161, 16, 0.7);
-      background: rgba(255, 161, 16, 0.04);
+      color: var(--sunshine-700);
+      background: var(--warm-subtle-bg);
       border-bottom: 1px solid var(--border-default);
     }
 
@@ -610,13 +684,16 @@ function renderHtml(grafanaUrl: string | undefined): string {
       <div class="header-brand">
         <h1>
           <span class="h1-text"><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></span>
-          ${
+          <span class="header-actions">
+            ${
     grafanaUrl
       ? `<a href="${
         escapeHtmlServer(grafanaUrl)
       }" class="grafana-link" target="_blank" rel="noopener noreferrer" aria-label="Open Grafana dashboard"><img src="/assets/grafana.svg" alt="Grafana" class="grafana-logo"></a>`
       : ""
   }
+            ${themeToggleButton()}
+          </span>
         </h1>
         <p class="subtitle">
           Release Automation &amp; Deployment Asset Registry — tracks the software versions
@@ -652,6 +729,7 @@ function renderHtml(grafanaUrl: string | undefined): string {
     Data refreshes when the inventory, assess, and dry-run jobs run.
     <span id="generated-at"></span>
   </footer>
+  ${themeToggleScript()}
   <script>
     const SEVERITY_ORDER = {
       breaking: 0, deprecated: 1, eol_warning: 2, false_positive: 3,
