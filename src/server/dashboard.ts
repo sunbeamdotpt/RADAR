@@ -157,6 +157,16 @@ function renderHtml(grafanaUrl: string | undefined): string {
       50% { text-shadow: 0 0 34px rgba(250, 82, 15, 0.75), 0 0 78px rgba(250, 82, 15, 0.32); }
     }
 
+    html[data-theme="light"] .radar-glow {
+      text-shadow: 0 0 18px rgba(250, 82, 15, 0.55), 0 0 42px rgba(250, 82, 15, 0.25);
+      animation: radar-glow-light 3s ease-in-out infinite;
+    }
+
+    @keyframes radar-glow-light {
+      0%, 100% { text-shadow: 0 0 18px rgba(250, 82, 15, 0.65), 0 0 42px rgba(250, 82, 15, 0.3); }
+      50% { text-shadow: 0 0 34px rgba(250, 82, 15, 0.95), 0 0 78px rgba(250, 82, 15, 0.45); }
+    }
+
     h1 .accent { color: var(--accent); }
 
     h1 .logo {
