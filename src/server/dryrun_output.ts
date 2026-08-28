@@ -8,74 +8,13 @@ function escapeHtml(str: string): string {
     .replaceAll('"', "&quot;");
 }
 
-export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined): Response {
-  if (!dryRun) {
-    return new Response(
-      `<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dry-run not found — Sunbeam RADAR</title>
-  <link rel="icon" type="image/png" href="/assets/sunbeam.png">
-  <style>
-    :root {
-      --bg-page: #1f1f1f;
-      --bg-card: #2a2a2a;
-      --text-primary: #ffffff;
-      --text-secondary: rgba(255, 255, 255, 0.7);
-      --text-muted: rgba(255, 255, 255, 0.4);
-      --border-default: rgba(255, 161, 16, 0.15);
-      --accent: #fa520f;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 2rem;
-      background: var(--bg-page);
-      color: var(--text-primary);
-      font-family: 'Ysabeau Infant', Arial, ui-sans-serif, system-ui, sans-serif;
-      font-weight: 647;
-      line-height: 1.5;
-    }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-  </style>
-</head>
-<body>
-  <p>Dry-run for namespace <code>${escapeHtml(namespace)}</code> not found.</p>
-  <p><a href="/">← Back to dashboard</a></p>
-</body>
-</html>`,
-      { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
-    );
-  }
-
-  const statusClass = `status-${dryRun.status}`;
-  const sections = [
-    { title: "Status", content: dryRun.status },
-    { title: "kubectl stdout", content: dryRun.stdout },
-    { title: "kubectl stderr", content: dryRun.stderr },
-    { title: "Sunbeam logs", content: String(dryRun.details?.sunbeam_stderr ?? "") },
-    { title: "Details", content: JSON.stringify(dryRun.details, null, 2) },
-  ];
-
-  const sectionHtml = sections.map((s) => {
-    const hasContent = s.content.trim().length > 0;
-    return `
-      <section>
-        <h2>${escapeHtml(s.title)}</h2>
-        ${hasContent ? `<pre>${escapeHtml(s.content)}</pre>` : `<p class="empty">—</p>`}
-      </section>
-    `;
-  }).join("");
-
+function renderPage(title: string, mainContent: string, status: number): Response {
   const html = `<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dry-run ${escapeHtml(namespace)} — Sunbeam RADAR</title>
+  <title>${escapeHtml(title)}</title>
   <link rel="icon" type="image/png" href="/assets/sunbeam.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -127,18 +66,38 @@ export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined
 
     h1 {
       margin: 0;
-      font-size: 1.25rem;
+      font-size: 1.5rem;
       font-weight: 791;
       letter-spacing: -0.025em;
       text-transform: uppercase;
+      color: var(--text-primary);
+    }
+
+    .radar-glow {
+      text-shadow: 0 0 18px rgba(250, 82, 15, 0.35), 0 0 42px rgba(250, 82, 15, 0.12);
+      animation: radar-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes radar-glow {
+      0%, 100% { text-shadow: 0 0 18px rgba(250, 82, 15, 0.45), 0 0 42px rgba(250, 82, 15, 0.18); }
+      50% { text-shadow: 0 0 34px rgba(250, 82, 15, 0.75), 0 0 78px rgba(250, 82, 15, 0.32); }
     }
 
     h1 .accent { color: var(--accent); }
 
+    h1 .logo {
+      height: 1.25em;
+      width: auto;
+      margin-left: 0.5rem;
+      vertical-align: text-top;
+      transform: translateY(-0.1em);
+    }
+
     .subtitle {
-      margin: 0.25rem 0 0;
+      margin: 0.5rem 0 0;
       color: var(--text-secondary);
       font-size: 0.875rem;
+      max-width: 720px;
     }
 
     main { padding: 2rem 0; }
@@ -232,19 +191,14 @@ export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined
 </head>
 <body>
   <header>
-    <div class="container">
-      <h1><span class="accent">Sunbeam</span> RADAR</h1>
+    <div class="header-inner container">
+      <h1><span class="accent">Sunbeam</span> <span class="radar-glow">RADAR</span> <img src="/assets/sunbeam.png" alt="" class="logo"></h1>
       <p class="subtitle">Dry-run output viewer</p>
     </div>
   </header>
   <main>
     <div class="container">
-      <div class="meta">
-        <span class="namespace">${escapeHtml(namespace)}</span>
-        <span class="status-badge ${statusClass}">${escapeHtml(dryRun.status)}</span>
-        <a href="/">← Back to dashboard</a>
-      </div>
-      ${sectionHtml}
+      ${mainContent}
     </div>
   </main>
   <footer>
@@ -254,6 +208,48 @@ export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined
 </html>`;
 
   return new Response(html, {
+    status,
     headers: { "content-type": "text/html; charset=utf-8" },
   });
+}
+
+export function renderDryRunOutput(namespace: string, dryRun: DryRun | undefined): Response {
+  if (!dryRun) {
+    return renderPage(
+      "Dry-run not found — Sunbeam RADAR",
+      `<p>Dry-run for namespace <code>${escapeHtml(namespace)}</code> not found.</p>
+      <p><a href="/">← Back to dashboard</a></p>`,
+      404,
+    );
+  }
+
+  const statusClass = `status-${dryRun.status}`;
+  const sections = [
+    { title: "Status", content: dryRun.status },
+    { title: "kubectl stdout", content: dryRun.stdout },
+    { title: "kubectl stderr", content: dryRun.stderr },
+    { title: "Sunbeam logs", content: String(dryRun.details?.sunbeam_stderr ?? "") },
+    { title: "Details", content: JSON.stringify(dryRun.details, null, 2) },
+  ];
+
+  const sectionHtml = sections.map((s) => {
+    const hasContent = s.content.trim().length > 0;
+    return `
+      <section>
+        <h2>${escapeHtml(s.title)}</h2>
+        ${hasContent ? `<pre>${escapeHtml(s.content)}</pre>` : `<p class="empty">—</p>`}
+      </section>
+    `;
+  }).join("");
+
+  const mainContent = `
+    <div class="meta">
+      <span class="namespace">${escapeHtml(namespace)}</span>
+      <span class="status-badge ${statusClass}">${escapeHtml(dryRun.status)}</span>
+      <a href="/">← Back to dashboard</a>
+    </div>
+    ${sectionHtml}
+  `;
+
+  return renderPage(`Dry-run ${namespace} — Sunbeam RADAR`, mainContent, 200);
 }

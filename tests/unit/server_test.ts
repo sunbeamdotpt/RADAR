@@ -376,6 +376,7 @@ Deno.test("renderDryRunOutput renders dry-run sections and escapes HTML", async 
   assertStringIncludes(body, "&amp;&quot;");
   assertStringIncludes(body, "line1\nline2");
   assertStringIncludes(body, "← Back to dashboard");
+  assertStringIncludes(body, "radar-glow");
 });
 
 Deno.test("renderDryRunOutput returns 404 when dry-run is missing", async () => {
@@ -384,6 +385,7 @@ Deno.test("renderDryRunOutput returns 404 when dry-run is missing", async () => 
   const body = await res.text();
   assertStringIncludes(body, "Dry-run for namespace");
   assertStringIncludes(body, "missing");
+  assertStringIncludes(body, "radar-glow");
 });
 
 Deno.test("/output serves dry-run report when dashboard is enabled", async () => {
