@@ -180,3 +180,36 @@ Deno.test("scoreKeywords keeps 'no longer supported' below the breaking threshol
   assertEquals(s.risk, "review");
   assertEquals(s.confidence, 0.5);
 });
+
+Deno.test("scoreKeywords catches bold inline breaking labels (OpenFGA '**Breaking:**')", () => {
+  const s = scoreKeywords(
+    "### Fixed\n- **Breaking:** persisted malformed models now fail with `ErrInvalidModel`\n",
+  );
+  assertEquals(s.risk, "breaking");
+  assertEquals(s.confidence, 0.9);
+});
+
+Deno.test("scoreKeywords flags manual schema migrations (Stalwart VARBINARY)", () => {
+  const s = scoreKeywords(
+    "Key columns are now VARBINARY(255). Existing deployments should run, once per table, " +
+      "the command ALTER TABLE a MODIFY k VARBINARY(255) NOT NULL;",
+  );
+  assertEquals(s.risk, "breaking");
+});
+
+Deno.test("scoreKeywords floors strong risk signals at review despite safety keywords", () => {
+  // Stalwart-style: real migration language plus "replace the binary" / "docker pull"
+  // safety phrases. The negatives must not net the migration out to likely_safe.
+  const s = scoreKeywords(
+    "Upgrading is as simple as replace the binary or docker pull. " +
+      "Existing MySQL deployments must run ALTER TABLE a MODIFY k VARBINARY(255) NOT NULL.",
+  );
+  assertEquals(s.risk, "review", "strong positive floored at review, never likely_safe");
+  assertEquals(s.confidence, 0.8);
+});
+
+Deno.test("scoreKeywords matches 'now default to' wording variants (BuildKit)", () => {
+  const s = scoreKeywords("All image results now default to using OCI media types");
+  assertEquals(s.risk, "review");
+  assertEquals(s.confidence, 0.4);
+});

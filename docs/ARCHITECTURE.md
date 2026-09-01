@@ -152,19 +152,24 @@ recorded in the assessment's `layer` field:
   `deprecated`; EOL window (within 6 months of `eol_date` on the matching `eol_version_line`) →
   `eol_warning`; custom-fork suffix (`-sunbeam.12`) → `custom_fork`; non-standard latest tag →
   `false_positive`.
-- **L0h version-scheme hints** — before version numbers are read as semver: `versioning_scheme=ory`
-  (any forward gap → `review`), `breaking_change_policy=major_only` (same major → `likely_safe`).
+- **L0h version-scheme hint** — before version numbers are read as semver: `versioning_scheme=ory`
+  (any forward gap → `review`).
 - **L0 major bump** — `latest.major > current.major` → `breaking`.
 - **L1 structured diffs** — only when the caller injects the data (acquisition is out of scope for
   the engine): Helm `values.schema.json` diff (removed keys, type changes, new `required`,
   restricted enums), CRD manifest diff (removed API versions, newly required fields), `go.mod` diff
   (removed deps, major dependency bumps).
 - **L2 release-note structure** — breaking/removal/deprecation section detection over fetched
-  release notes + the component's curated `notes`.
+  release notes + the component's curated `notes`. For GitHub releases the notes cover the whole
+  version gap (latest release included; the release list is paginated; checksum-only pages count as
+  empty).
 - **L3 commit analysis** — conventional-commit `!` / `BREAKING CHANGE:` markers plus keyword
   heuristics, when commits are injected.
 - **L4 weighted keywords** — scored patterns over the note text (positive weights for risk, negative
   for safety signals like "bug fixes only").
+- **L5h breaking-change policy hint** — `breaking_change_policy=major_only`: same major →
+  `likely_safe`. Runs after note analysis so notes with breaking signals win, and is suppressed when
+  notes were expected but unavailable.
 - **Channel hint** — `channel: experimental` (explicit, or inferred from curated notes) →
   `breaking`. Runs late: curated context outranks the generic gap heuristic.
 - **L5 gap fallback** — same-major minor gap: ≤2 → `likely_safe`, >10 → `review`; anything else with

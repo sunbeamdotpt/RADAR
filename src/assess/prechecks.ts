@@ -104,11 +104,11 @@ function checkEol(
 }
 
 /**
- * Version-scheme hints, applied before the generic major-bump rule:
+ * Version-scheme hint, applied before the generic major-bump rule:
  * projects whose version numbers don't carry semver meaning (e.g. Ory's
  * year-based releases) must not have "major bumps" read as breaking.
  */
-export function applyVersioningHints(
+export function applyVersioningSchemeHint(
   comp: ComponentRecord,
   hints: ComponentHints,
 ): Assessment | null {
@@ -117,8 +117,7 @@ export function applyVersioningHints(
   const lat = parseSemver(latest);
   if (!cur || !lat) return null;
 
-  const versioning = hints.versioning_scheme;
-  if (versioning === "ory") {
+  if (hints.versioning_scheme === "ory") {
     const gap = (lat.major - cur.major) * 100 + (lat.minor - cur.minor);
     if (gap > 0) {
       return makeAssessment(
@@ -132,11 +131,27 @@ export function applyVersioningHints(
         { hint: "versioning_scheme=ory" },
       );
     }
-    return null;
   }
 
-  const policy = hints.breaking_change_policy;
-  if (policy === "major_only" && cur.major === lat.major) {
+  return null;
+}
+
+/**
+ * Breaking-change policy hint (`major_only`). Runs late — after release-note
+ * analysis — so the policy confirms evidence instead of replacing it: notes
+ * with breaking signals win, and when notes were expected but unavailable the
+ * hint stays silent (a policy is not proof that nothing broke).
+ */
+export function applyBreakingPolicyHint(
+  comp: ComponentRecord,
+  hints: ComponentHints,
+): Assessment | null {
+  const { name, current, latest } = comp;
+  const cur = parseSemver(current);
+  const lat = parseSemver(latest);
+  if (!cur || !lat) return null;
+
+  if (hints.breaking_change_policy === "major_only" && cur.major === lat.major) {
     return makeAssessment(
       name,
       current,
@@ -144,7 +159,7 @@ export function applyVersioningHints(
       "likely_safe",
       `Same major version (${cur.major}) — project policy: breaking changes only in major versions (hint: breaking_change_policy=major_only)`,
       "Safe to auto-update",
-      "layer_0_hints",
+      "layer_5_hints",
       { hint: "breaking_change_policy=major_only" },
     );
   }

@@ -173,22 +173,26 @@ winning layer is recorded in each assessment's `layer` field):
    suffixes, false-positive latest tags. No external data needed.
 2. **L0 in-sync** — when `current` and `latest` parse to the same semver, the verdict is
    `non_applicable`; component-level prechecks above still fire.
-3. **L0h version-scheme hints** — `versioning_scheme` / `breaking_change_policy`, applied before
-   version numbers are read as semver.
+3. **L0h version-scheme hint** — `versioning_scheme` (e.g. `ory`), applied before version numbers
+   are read as semver.
 4. **L0 major bump** — `latest.major > current.major` → `breaking`.
 5. **L1 structured diffs** (`structured.ts`) — Helm `values.schema.json`, CRD manifests, `go.mod`;
    only when the data is injected (acquisition is out of scope for the engine).
 6. **L2 release-note structure** (`notes.ts`) — breaking/removal/deprecation section detection over
    fetched release notes (`fetch.ts`, soft-fail) plus curated `notes`. For GitHub releases, notes
-   are fetched across the whole version gap (not just the latest release) so breakage announced in
-   intermediate releases is visible.
+   are fetched across the whole version gap — latest release included, paginating the release list —
+   so breakage announced in intermediate or endpoint releases is visible. Checksum-only release
+   pages carry no signal and are treated as empty.
 7. **L3 commit analysis** (`commits.ts`) — conventional-commit breaking markers, when commits are
    injected.
 8. **L4 weighted keywords** (`keywords.ts`) — scored patterns, positive for risk, negative for
    safety signals.
-9. **Channel hint** — `channel: experimental` → `breaking`; runs late so curated context outranks
-   the gap heuristic.
-10. **L5 gap fallback** — same-major minor gap ≤2 → `likely_safe`, >10 → `review`; else `unknown`. A
+9. **L5h breaking-change policy hint** — `breaking_change_policy=major_only`: same-major →
+   `likely_safe`, but only after note analysis had its say, and suppressed when notes were expected
+   but unavailable (a policy confirms silence, it doesn't replace evidence).
+10. **Channel hint** — `channel: experimental` → `breaking`; runs late so curated context outranks
+    the gap heuristic.
+11. **L5 gap fallback** — same-major minor gap ≤2 → `likely_safe`, >10 → `review`; else `unknown`. A
     drifted component whose release notes were fetchable but came back empty is `unknown`, never
     `likely_safe` — silence is not safety. Note URLs are tried as resolved and with the tag's `v`
     prefix toggled, since seed templates can't know a repo's tagging convention.

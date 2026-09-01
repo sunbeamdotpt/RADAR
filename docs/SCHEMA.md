@@ -76,15 +76,15 @@ Rules:
 
 ### Assessor hint fields
 
-| Hint                     | Meaning                                                                                                    | Consuming layer                                           |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `channel`                | e.g. `experimental` — breaking changes allowed between releases                                            | channel hint (runs late, `layer_6_hints`)                 |
-| `versioning_scheme`      | e.g. `ory` — version numbers that look like semver but aren't; a forward gap is `review`, not a major bump | version-scheme hints (`layer_0_hints`, before major-bump) |
-| `breaking_change_policy` | e.g. `major_only` — breaking changes only in major versions; same-major → `likely_safe`                    | version-scheme hints (`layer_0_hints`)                    |
-| `eol_version_line`       | version line approaching EOL, e.g. `"2.9"`                                                                 | EOL precheck (`layer_0_precheck`)                         |
-| `eol_date`               | EOL date for that line (`YYYY-MM-DD`); warns within 6 months                                               | EOL precheck (`layer_0_precheck`)                         |
-| `eol_replacement`        | replacement text used in the EOL action                                                                    | EOL precheck (`layer_0_precheck`)                         |
-| `deprecated`             | presence marks the component deprecated; the value is the migration message                                | prechecks (`layer_0_precheck`)                            |
+| Hint                     | Meaning                                                                                                    | Consuming layer                                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `channel`                | e.g. `experimental` — breaking changes allowed between releases                                            | channel hint (runs late, `layer_6_hints`)                  |
+| `versioning_scheme`      | e.g. `ory` — version numbers that look like semver but aren't; a forward gap is `review`, not a major bump | version-scheme hints (`layer_0_hints`, before major-bump)  |
+| `breaking_change_policy` | e.g. `major_only` — breaking changes only in major versions; same-major → `likely_safe`                    | policy hint (`layer_5_hints`, after release-note analysis) |
+| `eol_version_line`       | version line approaching EOL, e.g. `"2.9"`                                                                 | EOL precheck (`layer_0_precheck`)                          |
+| `eol_date`               | EOL date for that line (`YYYY-MM-DD`); warns within 6 months                                               | EOL precheck (`layer_0_precheck`)                          |
+| `eol_replacement`        | replacement text used in the EOL action                                                                    | EOL precheck (`layer_0_precheck`)                          |
+| `deprecated`             | presence marks the component deprecated; the value is the migration message                                | prechecks (`layer_0_precheck`)                             |
 
 ## Report (job output / API payload)
 

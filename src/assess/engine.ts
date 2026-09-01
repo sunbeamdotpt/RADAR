@@ -4,8 +4,9 @@ import type { HttpClient } from "../sources/http.ts";
 import { makeAssessment } from "./verdict.ts";
 import { isVersionMatch, parseSemver } from "./version.ts";
 import {
+  applyBreakingPolicyHint,
   applyChannelHint,
-  applyVersioningHints,
+  applyVersioningSchemeHint,
   checkMajorBump,
   runPrechecks,
 } from "./prechecks.ts";
@@ -21,12 +22,14 @@ import { fetchReleaseNotes, releaseNotesFetchable } from "./fetch.ts";
  *
  *   L0  prechecks (floating, deprecated, EOL, fork, false-positive)
  *   L0  in-sync short-circuit → `non_applicable`
- *   L0h version-scheme hints (ory, major_only) — before the major-bump rule
+ *   L0h version-scheme hint (ory) — before the major-bump rule
  *   L0  major version bump
  *   L1  structured diffs (helm schema / CRD / go.mod), when data is injected
  *   L2  release-note structure
  *   L3  commit analysis, when commits are injected
  *   L4  weighted keywords
+ *   L5h breaking-change policy hint (major_only) — curated context confirms
+ *       the notes' silence; suppressed when notes were expected but unavailable
  *   L6  channel hint (experimental) — curated context outranks gap heuristics
  *   L5  version-gap fallback (a drifted component whose notes were fetchable
  *       but came back empty is unknown — silence is not safety)
@@ -90,7 +93,7 @@ export async function assessComponent(
 
   // Version-scheme hints interpret the version numbers themselves — they must
   // run before the generic major-bump rule reads them as semver.
-  const versioning = applyVersioningHints(comp, hints);
+  const versioning = applyVersioningSchemeHint(comp, hints);
   if (versioning) return versioning;
 
   const majorBump = checkMajorBump(comp);
@@ -257,6 +260,14 @@ export async function assessComponent(
       "layer_4_keywords",
       { confidence: kwScore.confidence, matched: kwScore.matched },
     );
+  }
+
+  // Breaking-change policy hint: curated context confirms the notes' silence,
+  // but never replaces it — when notes were expected but unavailable, the
+  // policy stays silent and the gap fallback decides.
+  if (!notesUnavailable) {
+    const policy = applyBreakingPolicyHint(comp, hints);
+    if (policy) return policy;
   }
 
   // Channel hint: curated context outranks the generic gap heuristic.

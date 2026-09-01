@@ -125,13 +125,13 @@ Deno.test("false positive latest tag (seaweedfs large_disk variant)", async () =
   assertEquals(a.risk_level, "false_positive");
 });
 
-Deno.test("major_only policy marks same-major as safe (OpenSearch)", async () => {
+Deno.test("major_only policy confirms same-major as safe after note analysis (OpenSearch)", async () => {
   const a = await assess(
     comp({ name: "OpenSearch", current: "3", latest: "3.8.0" }),
     { breaking_change_policy: "major_only" },
   );
   assertEquals(a.risk_level, "likely_safe");
-  assertEquals(a.layer, "layer_0_hints");
+  assertEquals(a.layer, "layer_5_hints");
 });
 
 Deno.test("multi-tag current parses first token (curl 8.9.1 / … → gap review)", async () => {
@@ -348,7 +348,7 @@ Deno.test("fetchReleaseNotes retries the v-toggled tag when the resolved URL 404
   const notes = await fetchReleaseNotes(c, http);
   assertEquals(notes, "## Breaking Changes\n- x");
   assertEquals(calls, [
-    "https://api.github.com/repos/longhorn/longhorn/releases?per_page=100",
+    "https://api.github.com/repos/longhorn/longhorn/releases?per_page=100&page=1",
     "https://api.github.com/repos/longhorn/longhorn/releases/tags/1.12.1",
     "https://api.github.com/repos/longhorn/longhorn/releases/tags/v1.12.1",
   ]);
@@ -433,7 +433,8 @@ Deno.test("fetchReleaseNotes concatenates intermediate release notes across the 
   assertEquals(notes.includes("# v1.2.3"), true);
   assertEquals(notes.includes("# v1.2.2"), true);
   assertEquals(notes.includes("# v1.2.0"), false, "current or older releases are excluded");
-  assertEquals(notes.includes("# v1.2.4"), false, "latest release is excluded");
+  assertEquals(notes.includes("# v1.2.4"), true, "latest release's own notes are included");
+  assertEquals(notes.indexOf("# v1.2.4") < notes.indexOf("# v1.2.3"), true, "endpoint first");
   assertEquals(notes.indexOf("# v1.2.3") < notes.indexOf("# v1.2.2"), true, "newest first");
 });
 
@@ -473,4 +474,270 @@ Deno.test("fetchReleaseNotes falls back to single release when range fetch fails
     link_template: "https://github.com/o/r/releases/tag/{tag}",
   });
   assertEquals(await fetchReleaseNotes(c, http), "single release notes");
+});
+
+// --- gap-walk regressions (endpoint inclusion, pagination, checksum pages) ---
+
+Deno.test("endpoint release notes are analyzed when the gap walk includes them (Loki 3.6.x)", async () => {
+  const http: HttpClient = {
+    json: (url: string) => {
+      if (url.includes("/releases?per_page=")) {
+        return Promise.resolve([
+          {
+            tag_name: "v3.6.12",
+            body: "## ⚠ BREAKING CHANGES\n- operator: consolidate image build workflows",
+            draft: false,
+            prerelease: false,
+          },
+          { tag_name: "v3.6.11", body: "bug fixes", draft: false, prerelease: false },
+          { tag_name: "v3.6.5", body: "old", draft: false, prerelease: false },
+        ]);
+      }
+      return Promise.reject(new Error("endpoint already in range; must not fetch single"));
+    },
+    text: () => Promise.reject(new Error("x")),
+  };
+  const a = await assessComponent(
+    comp({
+      name: "Loki",
+      current: "3.6.5",
+      latest: "3.6.12",
+      link_template: "https://github.com/grafana/loki/releases/tag/v{version}",
+    }),
+    {},
+    http,
+    undefined,
+    { now: NOW },
+  );
+  assertEquals(a.risk_level, "breaking");
+  assertEquals(a.layer, "layer_2_note_structure");
+});
+
+Deno.test("endpoint release notes are fetched on their own when the gap walk missed them", async () => {
+  const calls: string[] = [];
+  const http: HttpClient = {
+    json: (url: string) => {
+      calls.push(url);
+      if (url.includes("/releases?per_page=")) {
+        // Only intermediate releases listed — the endpoint tag is absent.
+        return Promise.resolve([
+          { tag_name: "v3.6.11", body: "bug fixes", draft: false, prerelease: false },
+          { tag_name: "v3.6.5", body: "old", draft: false, prerelease: false },
+        ]);
+      }
+      if (url.endsWith("/releases/tags/v3.6.12")) {
+        return Promise.resolve({ body: "## BREAKING CHANGES\n- move the Loki UI to a plugin" });
+      }
+      return Promise.reject(new Error("404"));
+    },
+    text: () => Promise.reject(new Error("404")),
+  };
+  const a = await assessComponent(
+    comp({
+      name: "Loki",
+      current: "3.6.5",
+      latest: "v3.6.12",
+      link_template: "https://github.com/grafana/loki/releases/tag/{tag}",
+    }),
+    {},
+    http,
+    undefined,
+    { now: NOW },
+  );
+  assertEquals(a.risk_level, "breaking");
+  assertEquals(a.layer, "layer_2_note_structure");
+  assertEquals(
+    calls.some((u) => u.endsWith("/releases/tags/v3.6.12")),
+    true,
+    "endpoint fetched singly when absent from the range",
+  );
+});
+
+Deno.test("fetchReleaseNotes paginates the release list across pages", async () => {
+  const calls: string[] = [];
+  const filler = Array.from({ length: 100 }, (_, i) => ({
+    tag_name: `v9.9.${i}`, // newer than latest: skipped, but keeps the page full
+    body: "",
+    draft: false,
+    prerelease: false,
+  }));
+  const http: HttpClient = {
+    json: (url: string) => {
+      calls.push(url);
+      if (url.endsWith("page=1")) return Promise.resolve(filler);
+      if (url.endsWith("page=2")) {
+        return Promise.resolve([
+          { tag_name: "v1.2.0", body: "latest notes", draft: false, prerelease: false },
+          {
+            tag_name: "v1.1.0",
+            body: "## Breaking Changes\n- removed X",
+            draft: false,
+            prerelease: false,
+          },
+          { tag_name: "v1.0.0", body: "current", draft: false, prerelease: false },
+        ]);
+      }
+      return Promise.reject(new Error("unexpected page"));
+    },
+    text: () => Promise.reject(new Error("x")),
+  };
+  const c = comp({
+    current: "v1.0.0",
+    latest: "v1.2.0",
+    link_template: "https://github.com/o/r/releases/tag/{tag}",
+  });
+  const notes = await fetchReleaseNotes(c, http);
+  assertEquals(notes.includes("## Breaking Changes"), true, "page 2 intermediate found");
+  assertEquals(notes.includes("# v1.2.0"), true, "endpoint on page 2 included");
+  assertEquals(calls.length, 2, "stopped after the short page");
+  assertEquals(calls[1].includes("page=2"), true);
+});
+
+Deno.test("checksum-only release notes are treated as unavailable (crictl)", async () => {
+  const checksums = [
+    "SHA256 checksums:",
+    `crictl-v1.32.0-linux-amd64.tar.gz: ${"a".repeat(64)}`,
+    `crictl-v1.32.0-linux-arm64.tar.gz: ${"b".repeat(64)}`,
+    `crictl-v1.32.0-windows-amd64.zip: ${"c".repeat(64)}`,
+  ].join("\n");
+  const http: HttpClient = {
+    json: (url: string) => {
+      if (url.includes("/releases?per_page=")) {
+        return Promise.resolve([
+          { tag_name: "v1.32.0", body: checksums, draft: false, prerelease: false },
+          { tag_name: "v1.31.0", body: "old", draft: false, prerelease: false },
+        ]);
+      }
+      return Promise.reject(new Error("no single fetch needed"));
+    },
+    text: () => Promise.reject(new Error("x")),
+  };
+  const c = comp({
+    name: "crictl",
+    current: "v1.31.0",
+    latest: "v1.32.0",
+    link_template: "https://github.com/kubernetes-sigs/cri-tools/releases/tag/{tag}",
+  });
+  assertEquals(await fetchReleaseNotes(c, http), "", "checksum pages carry no signal");
+
+  const a = await assessComponent(c, {}, http, undefined, { now: NOW });
+  assertEquals(a.risk_level, "unknown");
+  assertEquals(a.layer, "layer_5_gap_fallback");
+  assertEquals(a.details.notes_unavailable, true);
+});
+
+// --- deferred breaking-change policy hint ---
+
+Deno.test("major_only hint loses to breaking signals in the actual notes", async () => {
+  const a = await assess(
+    comp({ name: "OpenSearch", current: "3", latest: "3.8.0" }),
+    { breaking_change_policy: "major_only" },
+    { releaseNotes: "## BREAKING CHANGES\n- removed index setting" },
+  );
+  assertEquals(a.risk_level, "breaking");
+  assertEquals(a.layer, "layer_2_note_structure");
+});
+
+Deno.test("major_only hint confirms silent notes as likely_safe", async () => {
+  const a = await assess(
+    comp({ name: "OpenSearch", current: "3", latest: "3.8.0" }),
+    { breaking_change_policy: "major_only" },
+    { releaseNotes: "bug fixes and enhancements" },
+  );
+  assertEquals(a.risk_level, "likely_safe");
+  assertEquals(a.layer, "layer_5_hints");
+});
+
+Deno.test("major_only hint stays silent when notes were expected but unavailable", async () => {
+  const failing: HttpClient = {
+    json: () => Promise.reject(new Error("rate limited")),
+    text: () => Promise.reject(new Error("rate limited")),
+  };
+  const a = await assessComponent(
+    comp({
+      name: "OpenSearch",
+      current: "3.7.0",
+      latest: "3.8.0",
+      link_template: "https://github.com/opensearch-project/OpenSearch/releases/tag/{version}",
+    }),
+    { breaking_change_policy: "major_only" },
+    failing,
+    undefined,
+    { now: NOW },
+  );
+  assertEquals(a.risk_level, "unknown");
+  assertEquals(a.details.notes_unavailable, true);
+});
+
+Deno.test("bold inline breaking label in the endpoint release is flagged (OpenFGA v1.19.0)", async () => {
+  const http: HttpClient = {
+    json: (url: string) => {
+      if (url.includes("/releases?per_page=")) {
+        return Promise.resolve([
+          {
+            tag_name: "v1.19.0",
+            body:
+              "### Fixed\n- **Breaking:** authorization models with this defect that were already persisted will now fail to resolve on a cache miss with `ErrInvalidModel`\n### Dependencies\n- bumped deps via dependabot",
+            draft: false,
+            prerelease: false,
+          },
+          { tag_name: "v1.18.3", body: "bug fixes", draft: false, prerelease: false },
+          { tag_name: "v1.18.1", body: "old", draft: false, prerelease: false },
+        ]);
+      }
+      return Promise.reject(new Error("endpoint already in range; must not fetch single"));
+    },
+    text: () => Promise.reject(new Error("x")),
+  };
+  const a = await assessComponent(
+    comp({
+      name: "OpenFGA",
+      current: "v1.18.1",
+      latest: "v1.19.0",
+      link_template: "https://github.com/openfga/openfga/releases/tag/{tag}",
+    }),
+    {},
+    http,
+    undefined,
+    { now: NOW },
+  );
+  assertEquals(a.layer, "layer_4_keywords");
+  assertEquals(a.risk_level !== "likely_safe", true, "breaking label must not read as safe");
+});
+
+Deno.test("schema migration in the endpoint release floors at review (Stalwart v0.16.19)", async () => {
+  const http: HttpClient = {
+    json: (url: string) => {
+      if (url.includes("/releases?per_page=")) {
+        return Promise.resolve([
+          {
+            tag_name: "v0.16.19",
+            body:
+              "Upgrading to this version is as simple as replace the binary or docker pull.\n\n" +
+              "Key columns are now VARBINARY(255). Existing deployments should run, once per table, " +
+              "the command ALTER TABLE a MODIFY k VARBINARY(255) NOT NULL;",
+            draft: false,
+            prerelease: false,
+          },
+          { tag_name: "v0.16.11", body: "old", draft: false, prerelease: false },
+        ]);
+      }
+      return Promise.reject(new Error("endpoint already in range; must not fetch single"));
+    },
+    text: () => Promise.reject(new Error("x")),
+  };
+  const a = await assessComponent(
+    comp({
+      name: "Stalwart",
+      current: "v0.16.11",
+      latest: "v0.16.19",
+      link_template: "https://github.com/stalwartlabs/stalwart/releases/tag/{tag}",
+    }),
+    {},
+    http,
+    undefined,
+    { now: NOW },
+  );
+  assertEquals(a.layer, "layer_4_keywords");
+  assertEquals(a.risk_level !== "likely_safe", true, "schema migration must not read as safe");
 });
